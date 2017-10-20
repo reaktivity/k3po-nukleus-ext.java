@@ -163,13 +163,11 @@ public final class NukleusStreamFactory
                     channel.readExtBuffer(DATA).writeBytes(dataExtCopy);
                 }
 
-                //partition.doWindow(channel, readableBytes, 1);
                 int padding = channel.getConfig().getPadding();
                 partition.doWindow(channel, readableBytes + padding, padding);
 
                 if (!channel.getConfig().getUpdate())
                 {
-
                     partition.doReset(streamId);
                 }
                 fireMessageReceived(channel, message);
