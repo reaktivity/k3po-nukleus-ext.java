@@ -162,10 +162,12 @@ public final class NukleusStreamFactory
                     channel.readExtBuffer(DATA).writeBytes(dataExtCopy);
                 }
 
-                if (channel.getConfig().getUpdate())
+                partition.doWindow(channel, readableBytes, 1);
+                if (!channel.getConfig().getUpdate())
                 {
-                    partition.doWindow(channel, readableBytes, 1);
+                    partition.doReset(streamId);
                 }
+
                 fireMessageReceived(channel, message);
             }
             else
