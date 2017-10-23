@@ -164,9 +164,10 @@ public final class NukleusStreamFactory
                 }
 
                 int padding = channel.getConfig().getPadding();
+                int window = channel.getConfig().getWindow();
                 partition.doWindow(channel, readableBytes + padding, padding);
 
-                if (!channel.getConfig().getUpdate())
+                if (!channel.getConfig().getUpdate() && readableBytes >= window)
                 {
                     partition.doReset(streamId);
                 }
