@@ -18,7 +18,6 @@ accept "nukleus://server/streams/client"
        option nukleus:route 1234L
        option nukleus:transmission "simplex"
        option nukleus:window 12
-       option nukleus:update "none"
 
 accepted
 connected
