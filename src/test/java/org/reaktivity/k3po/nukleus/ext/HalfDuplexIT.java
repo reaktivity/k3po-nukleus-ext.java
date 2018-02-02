@@ -50,8 +50,8 @@ public class HalfDuplexIT
     private final ExpectedException thrown = ExpectedException.none();
 
     private final NukleusMemoryRule memory = new NukleusMemoryRule().directory(Paths.get("target/nukleus-itests"))
-                                                                    .capacity(1024 *1024)
-                                                                    .minimumBlockSize(8 * 1024);
+                                                                    .minimumBlockSize(8 * 1024)
+                                                                    .maximumBlockSize(1024 *1024);
 
     @Rule
     public final TestRule chain = outerRule(thrown).around(memory).around(k3po).around(timeout);

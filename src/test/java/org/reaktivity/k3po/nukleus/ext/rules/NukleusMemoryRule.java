@@ -25,8 +25,8 @@ import org.reaktivity.k3po.nukleus.ext.internal.behavior.layout.MemoryLayout;
 public final class NukleusMemoryRule implements TestRule
 {
     private Path directory;
-    private Integer capacity;
     private Integer minimumBlockSize;
+    private Integer maximumBlockSize;
 
     public NukleusMemoryRule directory(
         Path directory)
@@ -35,17 +35,17 @@ public final class NukleusMemoryRule implements TestRule
         return this;
     }
 
-    public NukleusMemoryRule capacity(
-        int capacity)
-    {
-        this.capacity = capacity;
-        return this;
-    }
-
     public NukleusMemoryRule minimumBlockSize(
         int minimumBlockSize)
     {
         this.minimumBlockSize = minimumBlockSize;
+        return this;
+    }
+
+    public NukleusMemoryRule maximumBlockSize(
+        int maximumBlockSize)
+    {
+        this.maximumBlockSize = maximumBlockSize;
         return this;
     }
 
@@ -57,14 +57,14 @@ public final class NukleusMemoryRule implements TestRule
             throw new IllegalStateException("directory not set");
         }
 
-        if (capacity == null)
-        {
-            throw new IllegalStateException("capacity not set");
-        }
-
         if (minimumBlockSize == null)
         {
-            throw new IllegalStateException("minimumBlockSize not set");
+            throw new IllegalStateException("minimum block size not set");
+        }
+
+        if (maximumBlockSize == null)
+        {
+            throw new IllegalStateException("maximum block size not set");
         }
 
         return new NukleusMemoryStatement(base);
@@ -85,8 +85,9 @@ public final class NukleusMemoryRule implements TestRule
         {
             try (MemoryLayout memoryLayout = new MemoryLayout.Builder()
                                                              .path(directory.resolve("memory0"))
-                                                             .capacity(capacity)
                                                              .minimumBlockSize(minimumBlockSize)
+                                                             .maximumBlockSize(maximumBlockSize)
+                                                             .create(true)
                                                              .build())
             {
                 base.evaluate();

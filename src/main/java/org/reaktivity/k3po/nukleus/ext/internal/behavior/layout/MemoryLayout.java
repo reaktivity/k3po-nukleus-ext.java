@@ -15,7 +15,11 @@
  */
 package org.reaktivity.k3po.nukleus.ext.internal.behavior.layout;
 
-import static org.agrona.BitUtil.SIZE_OF_LONG;
+import static java.lang.Integer.numberOfTrailingZeros;
+import static java.lang.Math.max;
+import static org.agrona.BitUtil.CACHE_LINE_LENGTH;
+import static org.agrona.BitUtil.align;
+import static org.agrona.BitUtil.isPowerOfTwo;
 import static org.agrona.IoUtil.createEmptyFile;
 import static org.agrona.IoUtil.mapExistingFile;
 import static org.agrona.IoUtil.unmap;
@@ -24,36 +28,47 @@ import java.io.File;
 import java.nio.MappedByteBuffer;
 import java.nio.file.Path;
 
-import org.agrona.BitUtil;
 import org.agrona.CloseHelper;
 import org.agrona.MutableDirectBuffer;
+import org.agrona.concurrent.AtomicBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
-import org.reaktivity.k3po.nukleus.ext.internal.behavior.memory.DefaultMemoryManager;
 
 public final class MemoryLayout extends Layout
 {
+    private static final int BITS_PER_BTREE_ENTRY_SHIFT = 1;
+    public static final int BITS_PER_BTREE_ENTRY = 1 << BITS_PER_BTREE_ENTRY_SHIFT;
 
-    private final UnsafeBuffer memoryBuffer;
-    private final int minimumBlockSize;
-    private final int maximumBlockSize;
-    private final int capacity;
+    public static final int LOCK_OFFSET = 0;
+    public static final int LOCK_SIZE = Long.BYTES;
+    public static final int MEMORY_ADDRESS_OFFSET = LOCK_OFFSET + LOCK_SIZE;
+    public static final int MEMORY_ADDRESS_SIZE = Long.BYTES;
+    public static final int MINIMUM_BLOCK_SIZE_OFFSET = MEMORY_ADDRESS_OFFSET + MEMORY_ADDRESS_SIZE;
+    public static final int MINIMUM_BLOCK_SIZE_SIZE = Integer.BYTES;
+    public static final int MAXIMUM_BLOCK_SIZE_OFFSET = MINIMUM_BLOCK_SIZE_OFFSET + MINIMUM_BLOCK_SIZE_SIZE;
+    public static final int MAXIMUM_BLOCK_SIZE_SIZE = Integer.BYTES;
+    public static final int BTREE_OFFSET = MAXIMUM_BLOCK_SIZE_OFFSET + MAXIMUM_BLOCK_SIZE_SIZE;
+
+    private final AtomicBuffer metadataBuffer;
+    private final MutableDirectBuffer memoryBuffer;
 
     private MemoryLayout(
-        UnsafeBuffer memoryBuffer,
-        int minimumBlockSize,
-        int maximumBlockSize,
-        int capacity)
+        AtomicBuffer metadataBuffer,
+        MutableDirectBuffer memoryBuffer)
     {
+        this.metadataBuffer = metadataBuffer;
         this.memoryBuffer = memoryBuffer;
-        this.minimumBlockSize = minimumBlockSize;
-        this.maximumBlockSize = maximumBlockSize;
-        this.capacity = capacity;
     }
 
     @Override
     public void close()
     {
-        unmap(memoryBuffer().byteBuffer());
+        unmap(metadataBuffer.byteBuffer());
+        unmap(memoryBuffer.byteBuffer());
+    }
+
+    public AtomicBuffer metadataBuffer()
+    {
+        return metadataBuffer;
     }
 
     public MutableDirectBuffer memoryBuffer()
@@ -63,17 +78,17 @@ public final class MemoryLayout extends Layout
 
     public int minimumBlockSize()
     {
-        return minimumBlockSize;
-    }
-
-    public int capacity()
-    {
-        return capacity;
+        return metadataBuffer.getInt(MINIMUM_BLOCK_SIZE_OFFSET);
     }
 
     public int maximumBlockSize()
     {
-        return maximumBlockSize;
+        return metadataBuffer.getInt(MAXIMUM_BLOCK_SIZE_OFFSET);
+    }
+
+    public int capacity()
+    {
+        return memoryBuffer.capacity();
     }
 
     public static final class Builder extends Layout.Builder<MemoryLayout>
@@ -81,66 +96,99 @@ public final class MemoryLayout extends Layout
         private Path path;
         private int capacity;
         private int minimumBlockSize;
-        private boolean readonly;
+        private int maximumBlockSize;
+        private boolean create;
 
-        public Builder path(Path path)
+        public Builder path(
+            Path path)
         {
             this.path = path;
             return this;
         }
 
-        public Builder capacity(
-            int capacity)
+        public Builder create(
+            boolean create)
         {
-            this.capacity = capacity;
-            return this;
-        }
-
-        public Builder readonly(
-            boolean readonly)
-        {
-            this.readonly = readonly;
+            this.create = create;
             return this;
         }
 
         public Builder minimumBlockSize(
             int minimumBlockSize)
         {
+            if (!isPowerOfTwo(minimumBlockSize))
+            {
+                throw new IllegalArgumentException("minimum block size MUST be a power of 2");
+            }
+
             this.minimumBlockSize = minimumBlockSize;
+            return this;
+        }
+
+        public Builder maximumBlockSize(
+            int maximumBlockSize)
+        {
+            if (!isPowerOfTwo(maximumBlockSize))
+            {
+                throw new IllegalArgumentException("maximum block size MUST be a power of 2");
+            }
+
+            this.maximumBlockSize = maximumBlockSize;
+            this.capacity = maximumBlockSize;
             return this;
         }
 
         @Override
         public MemoryLayout build()
         {
-            // TODO: when not creating file, all aspects of metadata should be observed from file contents
-            //       which simplifies keeping the metadata configuration in sync
             final File memory = path.toFile();
 
-            long sizeToAllocate = sizeToAllocate(capacity, capacity, minimumBlockSize);
-            if (!readonly)
+            if (create)
             {
-                CloseHelper.close(createEmptyFile(memory, sizeToAllocate));
+                final int metadataSize = BTREE_OFFSET + sizeofBTree(minimumBlockSize, maximumBlockSize);
+                final int metadataSizeAligned = align(metadataSize, CACHE_LINE_LENGTH);
+                CloseHelper.close(createEmptyFile(memory, metadataSizeAligned + capacity));
+
+                final MappedByteBuffer mappedMetadata = mapExistingFile(memory, "metadata", 0, metadataSizeAligned);
+
+                final MappedByteBuffer mappedMemory = mapExistingFile(memory, "memory", metadataSizeAligned, capacity);
+
+                final AtomicBuffer metadataBuffer = new UnsafeBuffer(mappedMetadata);
+                final MutableDirectBuffer memoryBuffer = new UnsafeBuffer(mappedMemory);
+
+                metadataBuffer.putInt(MINIMUM_BLOCK_SIZE_OFFSET, minimumBlockSize);
+                metadataBuffer.putInt(MAXIMUM_BLOCK_SIZE_OFFSET, maximumBlockSize);
+                metadataBuffer.putLong(MEMORY_ADDRESS_OFFSET, memoryBuffer.addressOffset());
+
+                return new MemoryLayout(metadataBuffer, memoryBuffer);
             }
-            final MappedByteBuffer mappedMemory = mapExistingFile(memory, "memory", 0, sizeToAllocate);
+            else
+            {
+                final MappedByteBuffer mappedBootstrap = mapExistingFile(memory, "bootstrap", 0, BTREE_OFFSET);
+                final int minimumBlockSize = mappedBootstrap.getInt(MINIMUM_BLOCK_SIZE_OFFSET);
+                final int maximumBlockSize = mappedBootstrap.getInt(MAXIMUM_BLOCK_SIZE_OFFSET);
+                unmap(mappedBootstrap);
 
-            final UnsafeBuffer unsafeBuffer = new UnsafeBuffer(mappedMemory);
+                final int metadataSize = BTREE_OFFSET + sizeofBTree(minimumBlockSize, maximumBlockSize);
+                final int metadataSizeAligned = align(metadataSize, CACHE_LINE_LENGTH);
+                final int capacity = (int) memory.length() - metadataSizeAligned;
 
-            return new MemoryLayout(unsafeBuffer, minimumBlockSize, capacity, capacity);
+                final MappedByteBuffer mappedMetadata = mapExistingFile(memory, "metadata", 0, metadataSizeAligned);
+                final MappedByteBuffer mappedMemory = mapExistingFile(memory, "memory", metadataSizeAligned, capacity);
+
+                final AtomicBuffer metadataBuffer = new UnsafeBuffer(mappedMetadata);
+                final MutableDirectBuffer memoryBuffer = new UnsafeBuffer(mappedMemory);
+
+                return new MemoryLayout(metadataBuffer, memoryBuffer);
+            }
         }
 
-        private static long sizeToAllocate(
-            int capacity,
-            int largestBlockSize,
-            int smallestBlockSize)
+        private static int sizeofBTree(
+            int minimumBlockSize,
+            int maximumBlockSize)
         {
-            int requiredSize = capacity + DefaultMemoryManager.sizeOfMetaData(
-                    capacity,
-                    largestBlockSize,
-                    smallestBlockSize);
-            return BitUtil.align(requiredSize, SIZE_OF_LONG);
+            int orderCount = numberOfTrailingZeros(maximumBlockSize) - numberOfTrailingZeros(minimumBlockSize) + 1;
+            return align(max(0x01 << orderCount << BITS_PER_BTREE_ENTRY_SHIFT >> Long.BYTES, Long.BYTES), Long.BYTES);
         }
-
     }
-
 }

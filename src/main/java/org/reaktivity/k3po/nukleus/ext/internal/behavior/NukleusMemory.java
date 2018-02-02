@@ -31,9 +31,6 @@ public final class NukleusMemory implements MemoryManager, AutoCloseable
     {
         this.layout = new MemoryLayout.Builder()
                                       .path(directory.resolve("memory0"))
-                                      .capacity(1024 * 1024)
-                                      .minimumBlockSize(8 * 1024)
-                                      .readonly(true)
                                       .build();
         this.manager = new DefaultMemoryManager(layout);
     }

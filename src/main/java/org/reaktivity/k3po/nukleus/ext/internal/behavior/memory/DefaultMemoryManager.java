@@ -19,8 +19,8 @@ import static org.agrona.BitUtil.findNextPositivePowerOfTwo;
 
 import java.util.Random;
 
-import org.agrona.BitUtil;
-import org.agrona.concurrent.UnsafeBuffer;
+import org.agrona.MutableDirectBuffer;
+import org.agrona.concurrent.AtomicBuffer;
 import org.agrona.hints.ThreadHints;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.layout.MemoryLayout;
 import org.reaktivity.nukleus.buffer.MemoryManager;
@@ -28,10 +28,6 @@ import org.reaktivity.nukleus.buffer.MemoryManager;
 // NOTE, order 0 is largest in terms of size
 public class DefaultMemoryManager implements MemoryManager
 {
-    public static final int BITS_PER_LONG = BitUtil.SIZE_OF_LONG * 8;
-    public static final int BITS_PER_ENTRY = 2;
-    public static final int SIZE_OF_LOCK_FIELD = BitUtil.SIZE_OF_LONG;
-
     private final long id = new Random().nextLong();
 
     private final BTreeFlyweight btreeRO;
@@ -39,26 +35,16 @@ public class DefaultMemoryManager implements MemoryManager
     private final int minimumBlockSize;
     private final int maximumBlockSize;
 
-    private final UnsafeBuffer buffer;
-    private final int metadataOffset;
+    private final MutableDirectBuffer memoryBuffer;
+    private final AtomicBuffer metadataBuffer;
 
     public DefaultMemoryManager(MemoryLayout memoryLayout)
     {
-        this.buffer = new UnsafeBuffer(memoryLayout.memoryBuffer());
-        this.metadataOffset = memoryLayout.capacity();
+        this.memoryBuffer = memoryLayout.memoryBuffer();
+        this.metadataBuffer = memoryLayout.metadataBuffer();
         this.minimumBlockSize = memoryLayout.minimumBlockSize();
         this.maximumBlockSize = memoryLayout.maximumBlockSize();
-        this.btreeRO = new BTreeFlyweight(maximumBlockSize, minimumBlockSize, metadataOffset + SIZE_OF_LOCK_FIELD);
-    }
-
-    public static int sizeOfMetaData(
-        int capacity,
-        int largestBlockSize,
-        int smallestBlockSize)
-    {
-        assert capacity == largestBlockSize;
-        final int bTreeLength = bTreeLength(largestBlockSize, smallestBlockSize);
-        return bTreeLength + SIZE_OF_LOCK_FIELD;
+        this.btreeRO = new BTreeFlyweight(minimumBlockSize, maximumBlockSize, MemoryLayout.BTREE_OFFSET);
     }
 
     @Override
@@ -132,7 +118,7 @@ public class DefaultMemoryManager implements MemoryManager
         node.fill();
 
         int memoffset = node.indexInOrder() * node.blockSize();
-        long addressOffset = buffer.addressOffset() + memoffset;
+        long addressOffset = memoryBuffer.addressOffset() + memoffset;
 
         while (!node.isRoot())
         {
@@ -154,12 +140,12 @@ public class DefaultMemoryManager implements MemoryManager
         long offset,
         int capacity)
     {
-        offset -= buffer.addressOffset();
+        offset -= memoryBuffer.addressOffset();
         final int blockSize = calculateBlockSize(capacity);
         final int order = calculateOrder(blockSize);
         final int orderSize = 0x01 << order;
         final int entryIndex = orderSize - 1 + (int) (offset / blockSize);
-        BTreeFlyweight node = btreeRO.wrap(buffer, entryIndex);
+        BTreeFlyweight node = btreeRO.wrap(metadataBuffer, entryIndex);
         node.empty();
         while (!node.isRoot())
         {
@@ -177,7 +163,7 @@ public class DefaultMemoryManager implements MemoryManager
 
     private BTreeFlyweight root()
     {
-        return btreeRO.wrap(buffer, 0);
+        return btreeRO.wrap(metadataBuffer, 0);
     }
 
     private int calculateOrder(int blockSize)
@@ -196,26 +182,6 @@ public class DefaultMemoryManager implements MemoryManager
         return findNextPositivePowerOfTwo(size);
     }
 
-    private static int numOfOrders(
-        long largest,
-        int smallest)
-    {
-        int result = 0;
-        while(largest >>> result != smallest)
-        {
-            result++;
-        }
-        return result + 1;
-    }
-
-    private static int bTreeLength(
-        int largestBlockSize,
-        int smallestBlockSize)
-    {
-        int numOfOrders = numOfOrders(largestBlockSize, smallestBlockSize);
-        return (int) Math.ceil(((0x01 << numOfOrders) * BITS_PER_ENTRY) / (BITS_PER_LONG * 1.0));
-    }
-
     public boolean released()
     {
         return root().isFree();
@@ -223,7 +189,7 @@ public class DefaultMemoryManager implements MemoryManager
 
     private void lock()
     {
-        while(!buffer.compareAndSetLong(metadataOffset, 0L, this.id))
+        while(!metadataBuffer.compareAndSetLong(MemoryLayout.LOCK_OFFSET, 0L, this.id))
         {
             ThreadHints.onSpinWait();
         }
@@ -231,6 +197,6 @@ public class DefaultMemoryManager implements MemoryManager
 
     private void unlock()
     {
-        buffer.putLongOrdered(metadataOffset, 0L);
+        metadataBuffer.putLongOrdered(MemoryLayout.LOCK_OFFSET, 0L);
     }
 }
