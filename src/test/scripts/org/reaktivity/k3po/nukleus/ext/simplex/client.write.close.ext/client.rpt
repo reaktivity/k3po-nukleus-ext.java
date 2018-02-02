@@ -16,8 +16,7 @@
 
 connect "nukleus://server/streams/client"
         option nukleus:route 1234L
-        option nukleus:window 8192
 connected
 
-write nukleus:end.ext [0x12 0x34] [0x0c] "Hello, world"
+write nukleus:write.ext [0x12 0x34] [0x0c] "Hello, world"
 write close

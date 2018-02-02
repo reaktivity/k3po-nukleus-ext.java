@@ -15,11 +15,14 @@
  */
 package org.reaktivity.k3po.nukleus.ext.internal.behavior;
 
-import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusThrottleMode.MESSAGE;
+import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NullChannelBuffer.NULL_BUFFER;
 
+import java.nio.ByteBuffer;
 import java.util.Deque;
 import java.util.LinkedList;
 
+import org.agrona.MutableDirectBuffer;
+import org.agrona.concurrent.UnsafeBuffer;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBufferFactory;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -31,27 +34,21 @@ import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.MessageEvent;
 import org.kaazing.k3po.driver.internal.netty.bootstrap.channel.AbstractChannel;
 import org.kaazing.k3po.driver.internal.netty.channel.ChannelAddress;
+import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.ListFW;
+import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.RegionFW;
 
 public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfig>
 {
     static final ChannelBufferFactory NATIVE_BUFFER_FACTORY = NukleusByteOrder.NATIVE.toBufferFactory();
-
-    private int readableBudget;
-    private int writableBudget;
-    int writablePadding;
-
-    private int writtenBytes;
-    private int acknowledgedBytes;
 
     private long sourceId;
     private long sourceAuth;
     private long targetId;
     private long targetAuth;
 
-    private int acknowlegedBytesCheckpoint = -1;
-
     final NukleusReaktor reaktor;
     final Deque<MessageEvent> writeRequests;
+    final MutableDirectBuffer writeBuffer;
 
     private NukleusExtensionKind readExtKind;
     private ChannelBuffer readExtBuffer;
@@ -59,10 +56,13 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     private NukleusExtensionKind writeExtKind;
     private ChannelBuffer writeExtBuffer;
 
-    private boolean targetWriteRequestInProgress;
-
     private ChannelFuture beginOutputFuture;
     private ChannelFuture beginInputFuture;
+
+    private int readerIndex;
+    private int writerIndex;
+    private int ackCount;
+
 
     NukleusChannel(
         NukleusServerChannel parent,
@@ -76,6 +76,14 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         this.reaktor = reaktor;
         this.writeRequests = new LinkedList<>();
         this.targetId = getId();
+
+        final int capacity = 64 * 1024; // TODO: configurable?
+        final UnsafeBuffer buffer = new UnsafeBuffer(new byte[0]);
+        final long address = reaktor.acquire(capacity);
+        buffer.wrap(address, capacity);
+        this.writeBuffer = buffer;
+
+        getCloseFuture().addListener(f -> reaktor.release(address, capacity));
     }
 
     @Override
@@ -164,18 +172,6 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         return String.format("%s [sourceId=%d, targetId=%d]", description, sourceId, targetId);
     }
 
-    public void readableBytes(
-        int credit)
-    {
-        readableBudget += credit;
-        assert readableBudget >= 0;
-    }
-
-    public int readableBytes()
-    {
-        return Math.max(readableBudget - getConfig().getPadding(), 0);
-    }
-
     public void sourceId(
         long sourceId)
     {
@@ -203,7 +199,8 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         return sourceAuth;
     }
 
-    public void targetAuth(long targetAuth)
+    public void targetAuth(
+        long targetAuth)
     {
         this.targetAuth = targetAuth;
     }
@@ -231,64 +228,6 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         }
 
         return beginInputFuture;
-    }
-
-    public int writableBytes()
-    {
-        return Math.max(writableBudget - writablePadding, 0);
-    }
-
-    public boolean writable()
-    {
-        return writableBudget > writablePadding || !getConfig().hasThrottle();
-    }
-
-    public int writableBytes(
-        int writableBytes)
-    {
-        return getConfig().hasThrottle() ? Math.min(writableBytes(), writableBytes) : writableBytes;
-    }
-
-    public void writtenBytes(
-        int writtenBytes)
-    {
-        this.writtenBytes += writtenBytes;
-        writableBudget -= writtenBytes + writablePadding;
-        assert writablePadding >= 0 && writableBudget >= 0;
-    }
-
-    public void writableWindow(
-        int credit,
-        int padding)
-    {
-        writableBudget += credit;
-        writablePadding = padding;
-
-        // approximation for window acknowledgment
-        // does not account for any change to total available window after initial window
-        if (writtenBytes > 0)
-        {
-            acknowledgedBytes += credit;
-        }
-
-        if (getConfig().getThrottle() == MESSAGE && targetWriteRequestInProgress)
-        {
-            if (acknowledgedBytes >= acknowlegedBytesCheckpoint)
-            {
-                completeWriteRequestIfFullyWritten();
-            }
-        }
-    }
-
-    public void targetWriteRequestProgressing()
-    {
-        if (getConfig().getThrottle() == MESSAGE)
-        {
-            final MessageEvent writeRequest = writeRequests.peekFirst();
-            final ChannelBuffer message = (ChannelBuffer) writeRequest.getMessage();
-            acknowlegedBytesCheckpoint = writtenBytes + message.readableBytes();
-            targetWriteRequestInProgress = true;
-        }
     }
 
     public ChannelBuffer writeExtBuffer(
@@ -337,36 +276,60 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         return readExtBuffer;
     }
 
-    public void targetWriteRequestProgress()
+    public void acknowledge(
+        ListFW<RegionFW> regions)
     {
-        switch (getConfig().getThrottle())
+        ackCount++;
+
+        regions.forEach(this::acknowledge);
+    }
+
+    public boolean hasAcknowledged()
+    {
+        return ackCount != 0;
+    }
+
+    public int writableBytes()
+    {
+        return writeBuffer.capacity() - writerIndex;
+    }
+
+    public void flushBytes(
+        ListFW.Builder<RegionFW.Builder, RegionFW> regions,
+        ChannelBuffer writeBuf,
+        int writeBytes)
+    {
+        if (writeBuf != NULL_BUFFER)
         {
-        case MESSAGE:
-            if (targetWriteRequestInProgress && acknowledgedBytes >= acknowlegedBytesCheckpoint)
-            {
-                completeWriteRequestIfFullyWritten();
-            }
-            break;
-        default:
-            completeWriteRequestIfFullyWritten();
-            break;
+            final long address = flushBytes(writeBuf);
+            regions.item(r -> r.address(address).length(writeBytes));
         }
     }
 
-    public boolean isTargetWriteRequestInProgress()
+    public long flushBytes(
+        ChannelBuffer writeBuf)
     {
-        return targetWriteRequestInProgress;
+        final ByteBuffer byteBuffer = writeBuf.toByteBuffer();
+        final int writtenBytes = byteBuffer.remaining();
+        final long writeAddress = writeBuffer.addressOffset() + writerIndex;
+
+        writeBuffer.putBytes(writerIndex, byteBuffer, writtenBytes);
+        writerIndex += writtenBytes;
+
+        writeBuf.skipBytes(writtenBytes);
+
+        return writeAddress;
     }
 
-    private void completeWriteRequestIfFullyWritten()
+    private void acknowledge(
+        RegionFW region)
     {
-        final MessageEvent writeRequest = writeRequests.peekFirst();
-        final ChannelBuffer message = (ChannelBuffer) writeRequest.getMessage();
-        if (!message.readable())
+        // TODO: verify address is contiguous
+        readerIndex += region.length();
+
+        if (readerIndex == writerIndex)
         {
-            targetWriteRequestInProgress = false;
-            writeRequests.removeFirst();
-            writeRequest.getFuture().setSuccess();
+            readerIndex = writerIndex = 0;
         }
     }
 }

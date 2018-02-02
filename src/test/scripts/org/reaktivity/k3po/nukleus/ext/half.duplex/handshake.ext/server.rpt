@@ -19,7 +19,6 @@ property newRouteRef 1234L # external
 accept "nukleus://server/streams/client"
        option nukleus:route ${newRouteRef}
        option nukleus:transmission "half-duplex"
-       option nukleus:window 8192
 
 accepted
 

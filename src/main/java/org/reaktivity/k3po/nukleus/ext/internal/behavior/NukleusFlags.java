@@ -13,29 +13,41 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package org.reaktivity.k3po.nukleus.ext.internal.behavior.config;
+package org.reaktivity.k3po.nukleus.ext.internal.behavior;
 
-import java.util.EnumSet;
-
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.MessageEvent;
-import org.kaazing.k3po.driver.internal.behavior.handler.codec.ConfigDecoder;
-
-public class ReadDataExtHandler extends AbstractReadExtHandler
+public enum NukleusFlags
 {
-    public ReadDataExtHandler(
-        ConfigDecoder decoder)
+    FIN(0),
+    RST(1);
+
+    public int flag()
     {
-        super(EnumSet.of(ChannelEventKind.MESSAGE), decoder);
+        return mask;
     }
 
-    @Override
-    public void messageReceived(
-        ChannelHandlerContext ctx,
-        MessageEvent e) throws Exception
+    public boolean check(
+        int flags)
     {
-        doReadExtension(ctx);
+        return (flags & mask) != 0;
+    }
 
-        super.messageReceived(ctx, e);
+    public int set(
+        int flags)
+    {
+        return flags | mask;
+    }
+
+    public int clear(
+        int flags)
+    {
+        return flags & ~mask;
+    }
+
+    private final int mask;
+
+    NukleusFlags(
+        int order)
+    {
+        this.mask = 1 << order;
     }
 }

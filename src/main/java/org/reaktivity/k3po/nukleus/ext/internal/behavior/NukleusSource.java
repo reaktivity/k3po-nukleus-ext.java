@@ -15,6 +15,8 @@
  */
 package org.reaktivity.k3po.nukleus.ext.internal.behavior;
 
+import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusFlags.RST;
+
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -136,7 +138,7 @@ public final class NukleusSource implements AutoCloseable
 
         if (partition != null)
         {
-            partition.doReset(channel.sourceId());
+            partition.doAck(channel.sourceId(), RST.flag());
             abortFuture.setSuccess();
         }
         else

@@ -18,15 +18,26 @@ package org.reaktivity.k3po.nukleus.ext.internal.behavior.config;
 import java.util.EnumSet;
 
 import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.MessageEvent;
 import org.kaazing.k3po.driver.internal.behavior.handler.codec.ConfigDecoder;
 import org.kaazing.k3po.driver.internal.netty.channel.ShutdownInputEvent;
 
-public class ReadEndExtHandler extends AbstractReadExtHandler
+public class ReadWriteExtHandler extends AbstractReadExtHandler
 {
-    public ReadEndExtHandler(
+    public ReadWriteExtHandler(
         ConfigDecoder decoder)
     {
-        super(EnumSet.of(ChannelEventKind.INPUT_SHUTDOWN), decoder);
+        super(EnumSet.of(ChannelEventKind.MESSAGE, ChannelEventKind.INPUT_SHUTDOWN), decoder);
+    }
+
+    @Override
+    public void messageReceived(
+        ChannelHandlerContext ctx,
+        MessageEvent e) throws Exception
+    {
+        doReadExtension(ctx);
+
+        super.messageReceived(ctx, e);
     }
 
     @Override

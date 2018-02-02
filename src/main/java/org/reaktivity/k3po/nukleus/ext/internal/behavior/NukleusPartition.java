@@ -18,6 +18,7 @@ package org.reaktivity.k3po.nukleus.ext.internal.behavior;
 import static org.jboss.netty.channel.Channels.fireChannelBound;
 import static org.jboss.netty.channel.Channels.fireChannelConnected;
 import static org.jboss.netty.channel.Channels.future;
+import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusFlags.RST;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusTransmission.DUPLEX;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusTransmission.SIMPLEX;
 
@@ -34,10 +35,11 @@ import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.layout.StreamsLayout;
+import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.ListFW;
+import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.AckFW;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.BeginFW;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.FrameFW;
-import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.ResetFW;
-import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.WindowFW;
+import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.RegionFW;
 import org.reaktivity.k3po.nukleus.ext.internal.util.function.LongLongFunction;
 import org.reaktivity.k3po.nukleus.ext.internal.util.function.LongObjectBiConsumer;
 
@@ -46,8 +48,7 @@ final class NukleusPartition implements AutoCloseable
     private final FrameFW frameRO = new FrameFW();
     private final BeginFW beginRO = new BeginFW();
 
-    private final WindowFW.Builder windowRW = new WindowFW.Builder();
-    private final ResetFW.Builder resetRW = new ResetFW.Builder();
+    private final AckFW.Builder ackRW = new AckFW.Builder();
 
     private final Path partitionPath;
     private final StreamsLayout layout;
@@ -144,7 +145,7 @@ final class NukleusPartition implements AutoCloseable
 
             final long streamId = frameRO.streamId();
 
-            doReset(streamId);
+            doAck(streamId, RST.flag());
         }
     }
 
@@ -167,7 +168,7 @@ final class NukleusPartition implements AutoCloseable
             }
             else
             {
-                doReset(sourceId);
+                doAck(sourceId, RST.flag());
             }
         }
     }
@@ -218,37 +219,34 @@ final class NukleusPartition implements AutoCloseable
         }
         else
         {
-            doReset(sourceId);
+            doAck(sourceId, RST.flag());
         }
     }
 
-    void doWindow(
-        final NukleusChannel channel,
-        final int credit,
-        final int padding,
-        final int groupId)
+    void doAck(
+        final long streamId,
+        final int flags)
     {
-        final long streamId = channel.sourceId();
-
-        channel.readableBytes(credit);
-
-        final WindowFW window = windowRW.wrap(writeBuffer, 0, writeBuffer.capacity())
+        final AckFW ack = ackRW.wrap(writeBuffer, 0, writeBuffer.capacity())
                 .streamId(streamId)
-                .credit(credit)
-                .padding(padding)
-                .groupId(groupId)
+                .flags(flags)
                 .build();
 
-        throttleBuffer.write(window.typeId(), window.buffer(), window.offset(), window.sizeof());
+        throttleBuffer.write(ack.typeId(), ack.buffer(), ack.offset(), ack.sizeof());
     }
 
-    void doReset(
-        final long streamId)
+    void doAck(
+        final long streamId,
+        final int flags,
+        final ListFW<RegionFW> regions)
     {
-        final ResetFW reset = resetRW.wrap(writeBuffer, 0, writeBuffer.capacity())
-                .streamId(streamId).build();
+        final AckFW ack = ackRW.wrap(writeBuffer, 0, writeBuffer.capacity())
+                .streamId(streamId)
+                .flags(flags)
+                .regions(b -> regions.forEach(e -> b.item(m -> m.address(e.address()).length(e.length()))))
+                .build();
 
-        throttleBuffer.write(reset.typeId(), reset.buffer(), reset.offset(), reset.sizeof());
+        throttleBuffer.write(ack.typeId(), ack.buffer(), ack.offset(), ack.sizeof());
     }
 
     private NukleusChildChannel doAccept(
@@ -273,11 +271,8 @@ final class NukleusPartition implements AutoCloseable
             NukleusChannelConfig childConfig = childChannel.getConfig();
             childConfig.setBufferFactory(serverConfig.getBufferFactory());
             childConfig.setTransmission(serverConfig.getTransmission());
-            childConfig.setThrottle(serverConfig.getThrottle());
             childConfig.setReadPartition(serverConfig.getReadPartition());
             childConfig.setWritePartition(serverConfig.getWritePartition());
-            childConfig.setWindow(serverConfig.getWindow());
-            childConfig.setPadding(serverConfig.getPadding());
 
             childConfig.setCorrelation(correlationId);
 

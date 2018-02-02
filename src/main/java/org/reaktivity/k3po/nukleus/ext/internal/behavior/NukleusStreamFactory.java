@@ -15,6 +15,8 @@
  */
 package org.reaktivity.k3po.nukleus.ext.internal.behavior;
 
+import static java.nio.ByteBuffer.allocateDirect;
+import static org.jboss.netty.buffer.ChannelBuffers.wrappedBuffer;
 import static org.jboss.netty.channel.Channels.fireChannelClosed;
 import static org.jboss.netty.channel.Channels.fireChannelDisconnected;
 import static org.jboss.netty.channel.Channels.fireChannelUnbound;
@@ -22,29 +24,33 @@ import static org.jboss.netty.channel.Channels.fireMessageReceived;
 import static org.kaazing.k3po.driver.internal.netty.channel.Channels.fireInputAborted;
 import static org.kaazing.k3po.driver.internal.netty.channel.Channels.fireInputShutdown;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusExtensionKind.BEGIN;
-import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusExtensionKind.DATA;
-import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusExtensionKind.END;
+import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusExtensionKind.WRITE;
+import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusFlags.FIN;
+import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusFlags.RST;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NullChannelBuffer.NULL_BUFFER;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.function.LongConsumer;
 
 import org.agrona.DirectBuffer;
 import org.agrona.MutableDirectBuffer;
+import org.agrona.collections.MutableInteger;
 import org.agrona.concurrent.MessageHandler;
+import org.agrona.concurrent.UnsafeBuffer;
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.ChannelFuture;
+import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.ListFW;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.OctetsFW;
-import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.AbortFW;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.BeginFW;
-import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.DataFW;
-import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.EndFW;
+import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.RegionFW;
+import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.WriteFW;
 
 public final class NukleusStreamFactory
 {
     private final BeginFW beginRO = new BeginFW();
-    private final DataFW dataRO = new DataFW();
-    private final EndFW endRO = new EndFW();
-    private final AbortFW abortRO = new AbortFW();
+    private final WriteFW writeRO = new WriteFW();
 
     private final LongConsumer unregisterStream;
 
@@ -90,17 +96,9 @@ public final class NukleusStreamFactory
                 BeginFW begin = beginRO.wrap(buffer, index, index + length);
                 onBegin(begin);
                 break;
-            case DataFW.TYPE_ID:
-                DataFW data = dataRO.wrap(buffer, index, index + length);
-                onData(data);
-                break;
-            case EndFW.TYPE_ID:
-                EndFW end = endRO.wrap(buffer, index, index + length);
-                onEnd(end);
-                break;
-            case AbortFW.TYPE_ID:
-                AbortFW abort = abortRO.wrap(buffer, index, index + length);
-                onAbort(abort);
+            case WriteFW.TYPE_ID:
+                WriteFW write = writeRO.wrap(buffer, index, index + length);
+                onWrite(write);
                 break;
             }
         }
@@ -109,11 +107,9 @@ public final class NukleusStreamFactory
             BeginFW begin)
         {
             final long streamId = begin.streamId();
+            final long authorization = begin.authorization();
+            final int flags = begin.flags();
             final OctetsFW beginExt = begin.extension();
-
-            final NukleusChannelConfig channelConfig = channel.getConfig();
-            final int initialWindow = channelConfig.getWindow();
-            final int padding = channelConfig.getPadding();
 
             int beginExtBytes = beginExt.sizeof();
             if (beginExtBytes != 0)
@@ -129,117 +125,126 @@ public final class NukleusStreamFactory
             }
 
             channel.sourceId(streamId);
-            channel.sourceAuth(begin.authorization());
+            channel.sourceAuth(authorization);
 
-            partition.doWindow(channel, initialWindow, padding, 0);
+            partition.doAck(streamId, flags);
 
             channel.beginInputFuture().setSuccess();
 
             handshakeFuture.setSuccess();
         }
 
-        private void onData(
-            DataFW data)
+        private void onWrite(
+            WriteFW write)
         {
-            final long streamId = data.streamId();
-            final OctetsFW payload = data.payload();
-            final ChannelBuffer message = payload == null ? NULL_BUFFER : payload.get(this::readBuffer);
-            final int readableBytes = message.readableBytes();
-            final OctetsFW dataExt = data.extension();
+            final long streamId = write.streamId();
+            final ListFW<RegionFW> regions = write.regions();
+            final OctetsFW writeExt = write.extension();
+            final int flags = write.flags();
 
-            if (channel.readableBytes() >= readableBytes && data.authorization() == channel.sourceAuth())
+            final ByteOrder byteOrder = channel.getConfig().getBufferFactory().getDefaultOrder();
+            final ChannelBuffer message = toChannelBuffer(byteOrder, flags, regions, writeExt);
+
+            if (write.authorization() == channel.sourceAuth())
             {
-                channel.readableBytes(-readableBytes);
-
-                int dataExtBytes = dataExt.sizeof();
-                if (dataExtBytes != 0)
+                int writeExtBytes = writeExt.sizeof();
+                if (writeExtBytes != 0)
                 {
-                    final DirectBuffer buffer = dataExt.buffer();
-                    final int offset = dataExt.offset();
+                    final DirectBuffer buffer = writeExt.buffer();
+                    final int offset = writeExt.offset();
 
                     // TODO: avoid allocation
-                    final byte[] dataExtCopy = new byte[dataExtBytes];
-                    buffer.getBytes(offset, dataExtCopy);
+                    final byte[] writeExtCopy = new byte[writeExtBytes];
+                    buffer.getBytes(offset, writeExtCopy);
 
-                    channel.readExtBuffer(DATA).writeBytes(dataExtCopy);
+                    channel.readExtBuffer(WRITE).writeBytes(writeExtCopy);
                 }
 
-                if (channel.getConfig().getUpdate())
+                if (message != null)
                 {
-                    int padding = channel.getConfig().getPadding();
-                    partition.doWindow(channel, readableBytes + padding, padding, 0);
+                    fireMessageReceived(channel, message);
                 }
-                fireMessageReceived(channel, message);
+            }
+
+            int ackFlags = RST.clear(flags);
+
+            if (RST.check(flags))
+            {
+                if (write.authorization() != channel.sourceAuth())
+                {
+                    ackFlags = RST.set(ackFlags);
+                }
+
+                unregisterStream.accept(streamId);
+
+                if (channel.setReadAborted())
+                {
+                    fireInputAborted(channel);
+                }
+            }
+            else if (FIN.check(flags))
+            {
+                if (write.authorization() != channel.sourceAuth())
+                {
+                    ackFlags = RST.set(ackFlags);
+                }
+
+                unregisterStream.accept(streamId);
+
+                if (channel.setReadClosed())
+                {
+                    fireInputShutdown(channel);
+                    fireChannelDisconnected(channel);
+                    fireChannelUnbound(channel);
+                    fireChannelClosed(channel);
+                }
+                else
+                {
+                    fireInputShutdown(channel);
+                }
+            }
+
+            partition.doAck(streamId, ackFlags, regions);
+        }
+
+        private ChannelBuffer toChannelBuffer(
+            ByteOrder byteOrder,
+            int flags,
+            ListFW<RegionFW> regions,
+            OctetsFW extension)
+        {
+            ChannelBuffer buffer;
+
+            if (regions.isEmpty())
+            {
+                buffer = flags == 0 && extension.sizeof() != 0 ? NULL_BUFFER : null;
             }
             else
             {
-                partition.doReset(streamId);
-            }
-        }
+                MutableInteger capacity = new MutableInteger();
+                regions.forEach(r -> capacity.value += r.length());
 
-        private void onEnd(
-            EndFW end)
-        {
-            final long streamId = end.streamId();
-            if (end.authorization() != channel.sourceAuth())
-            {
-                partition.doReset(streamId);
-            }
-            unregisterStream.accept(streamId);
-
-            final OctetsFW endExt = end.extension();
-
-            int endExtBytes = endExt.sizeof();
-            if (endExtBytes != 0)
-            {
-                final DirectBuffer buffer = endExt.buffer();
-                final int offset = endExt.offset();
-
-                // TODO: avoid allocation
-                final byte[] endExtCopy = new byte[endExtBytes];
-                buffer.getBytes(offset, endExtCopy);
-
-                channel.readExtBuffer(END).writeBytes(endExtCopy);
+                if (capacity.value == 0)
+                {
+                    buffer = ChannelBuffers.EMPTY_BUFFER;
+                }
+                else
+                {
+                    DirectBuffer view = new UnsafeBuffer(new byte[0]);
+                    ByteBuffer byteBuf = allocateDirect(capacity.value).order(byteOrder);
+                    regions.forEach(r ->
+                    {
+                        final int length = r.length();
+                        view.wrap(r.address(), length);
+                        view.getBytes(0, byteBuf, byteBuf.position(), length);
+                        byteBuf.position(byteBuf.position() + length);
+                    });
+                    byteBuf.flip();
+                    buffer = wrappedBuffer(byteBuf);
+                }
             }
 
-            if (channel.setReadClosed())
-            {
-                fireInputShutdown(channel);
-                fireChannelDisconnected(channel);
-                fireChannelUnbound(channel);
-                fireChannelClosed(channel);
-            }
-            else
-            {
-                fireInputShutdown(channel);
-            }
-        }
-
-        private void onAbort(
-            AbortFW abort)
-        {
-            final long streamId = abort.streamId();
-            if (abort.authorization() != channel.sourceAuth())
-            {
-                partition.doReset(streamId);
-            }
-            unregisterStream.accept(streamId);
-
-            if (channel.setReadAborted())
-            {
-                fireInputAborted(channel);
-            }
-        }
-
-        private ChannelBuffer readBuffer(
-            DirectBuffer buffer,
-            int index,
-            int maxLimit)
-        {
-            // TODO: avoid allocation
-            final byte[] array = new byte[maxLimit - index];
-            buffer.getBytes(index, array);
-            return channel.getConfig().getBufferFactory().getBuffer(array, 0, array.length);
+            return buffer;
         }
     }
 }

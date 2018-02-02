@@ -20,4 +20,3 @@ accept "nukleus://server/streams/client"
        option nukleus:route ${newRouteRef}
        option nukleus:transmission "half-duplex"
        option nukleus:authorization 0x0001_000000000000L
-       option nukleus:window 8192

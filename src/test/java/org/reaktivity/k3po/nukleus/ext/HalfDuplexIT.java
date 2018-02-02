@@ -25,6 +25,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
 import static org.junit.rules.RuleChain.outerRule;
 
+import java.nio.file.Paths;
+
 import org.junit.ComparisonFailure;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -36,6 +38,7 @@ import org.junit.rules.Timeout;
 import org.junit.runners.model.TestTimedOutException;
 import org.kaazing.k3po.junit.annotation.Specification;
 import org.kaazing.k3po.junit.rules.K3poRule;
+import org.reaktivity.k3po.nukleus.ext.rules.NukleusMemoryRule;
 
 public class HalfDuplexIT
 {
@@ -46,8 +49,12 @@ public class HalfDuplexIT
 
     private final ExpectedException thrown = ExpectedException.none();
 
+    private final NukleusMemoryRule memory = new NukleusMemoryRule().directory(Paths.get("target/nukleus-itests"))
+                                                                    .capacity(1024 *1024)
+                                                                    .minimumBlockSize(8 * 1024);
+
     @Rule
-    public final TestRule chain = outerRule(thrown).around(k3po).around(timeout);
+    public final TestRule chain = outerRule(thrown).around(memory).around(k3po).around(timeout);
 
     @Test
     @Specification({
@@ -272,86 +279,6 @@ public class HalfDuplexIT
         "client.sent.read.abort/server"
     })
     public void shouldReceiveClientSentReadAbort() throws Exception
-    {
-        k3po.finish();
-    }
-
-    @Test
-    @Specification({
-        "server.sent.throttle/client",
-        "server.sent.throttle/server"
-    })
-    public void shouldThrottleClientSentData() throws Exception
-    {
-        k3po.finish();
-    }
-
-    @Test
-    @Specification({
-        "client.sent.throttle/client",
-        "client.sent.throttle/server"
-    })
-    public void shouldThrottleServerSentData() throws Exception
-    {
-        k3po.finish();
-    }
-
-    @Test
-    @Specification({
-        "server.sent.throttle.message/client",
-        "server.sent.throttle.message/server"
-    })
-    public void shouldThrottleClientSentDataPerMessage() throws Exception
-    {
-        k3po.finish();
-    }
-
-    @Test
-    @Specification({
-        "client.sent.throttle.message/client",
-        "client.sent.throttle.message/server"
-    })
-    public void shouldThrottleServerSentDataPerMessage() throws Exception
-    {
-        k3po.finish();
-    }
-
-    @Test
-    @Specification({
-        "server.sent.throttle.initial.only/client",
-        "server.sent.throttle.initial.only/server"
-    })
-    public void shouldThrottleInitialOnlyClientSentData() throws Exception
-    {
-        k3po.finish();
-    }
-
-    @Test
-    @Specification({
-        "client.sent.throttle.initial.only/client",
-        "client.sent.throttle.initial.only/server"
-    })
-    public void shouldThrottleInitialOnlyServerSentData() throws Exception
-    {
-        k3po.finish();
-    }
-
-    @Test
-    @Specification({
-        "server.sent.overflow/client",
-        "server.sent.overflow/server"
-    })
-    public void shouldOverflowClientSentData() throws Exception
-    {
-        k3po.finish();
-    }
-
-    @Test
-    @Specification({
-        "client.sent.overflow/client",
-        "client.sent.overflow/server"
-    })
-    public void shouldOverflowServerSentData() throws Exception
     {
         k3po.finish();
     }

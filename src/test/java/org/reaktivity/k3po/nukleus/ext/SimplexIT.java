@@ -22,8 +22,9 @@ import static org.hamcrest.Matchers.hasProperty;
 import static org.hamcrest.Matchers.isA;
 import static org.junit.rules.RuleChain.outerRule;
 
+import java.nio.file.Paths;
+
 import org.junit.ComparisonFailure;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.DisableOnDebug;
@@ -32,6 +33,7 @@ import org.junit.rules.TestRule;
 import org.junit.rules.Timeout;
 import org.kaazing.k3po.junit.annotation.Specification;
 import org.kaazing.k3po.junit.rules.K3poRule;
+import org.reaktivity.k3po.nukleus.ext.rules.NukleusMemoryRule;
 
 public class SimplexIT
 {
@@ -42,8 +44,12 @@ public class SimplexIT
 
     private final ExpectedException thrown = ExpectedException.none();
 
+    private final NukleusMemoryRule memory = new NukleusMemoryRule().directory(Paths.get("target/nukleus-itests"))
+                                                                    .capacity(1024 *1024)
+                                                                    .minimumBlockSize(8 * 1024);
+
     @Rule
-    public final TestRule chain = outerRule(thrown).around(k3po).around(timeout);
+    public final TestRule chain = outerRule(thrown).around(memory).around(k3po).around(timeout);
 
     @Test
     @Specification({
@@ -169,61 +175,10 @@ public class SimplexIT
 
     @Test
     @Specification({
-        "server.sent.throttle/client",
-        "server.sent.throttle/server"
-    })
-    public void shouldThrottleClientSentData() throws Exception
-    {
-        k3po.finish();
-    }
-
-    @Test
-    @Specification({
-        "server.sent.throttle.message/client",
-        "server.sent.throttle.message/server"
-    })
-    public void shouldThrottleClientSentDataPerMessage() throws Exception
-    {
-        k3po.finish();
-    }
-
-    @Test
-    @Specification({
-        "server.sent.throttle.initial.only/client",
-        "server.sent.throttle.initial.only/server"
-    })
-    public void shouldThrottleInitialOnlyClientSentData() throws Exception
-    {
-        k3po.finish();
-    }
-
-    @Ignore ("Please see issue #22: https://github.com/reaktivity/k3po-nukleus-ext.java/issues/22")
-    @Test
-    @Specification({
-        "server.sent.throttle.initial.only.update.none/client",
-        "server.sent.throttle.initial.only.update.none/server"
-    })
-    public void shouldThrottleInitialOnlyClientSentDataUpdateNone() throws Exception
-    {
-        k3po.finish();
-    }
-
-    @Test
-    @Specification({
         "client.close/client",
         "client.close/server"
     })
     public void shouldReceiveClientClose() throws Exception
-    {
-        k3po.finish();
-    }
-
-    @Test
-    @Specification({
-        "server.sent.overflow/client",
-        "server.sent.overflow/server"
-    })
-    public void shouldOverflowClientSentData() throws Exception
     {
         k3po.finish();
     }

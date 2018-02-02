@@ -34,22 +34,4 @@ public interface NukleusChannelConfig extends ChannelConfig
     void setTransmission(NukleusTransmission transmission);
 
     NukleusTransmission getTransmission();
-
-    void setWindow(int window);
-
-    int getWindow();
-
-    void setPadding(int padding);
-
-    int getPadding();
-
-    void setUpdate(boolean update);
-
-    boolean getUpdate();
-
-    void setThrottle(NukleusThrottleMode throttle);
-
-    NukleusThrottleMode getThrottle();
-
-    boolean hasThrottle();
 }

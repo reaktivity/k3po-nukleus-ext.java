@@ -16,7 +16,6 @@
 
 connect "nukleus://server/streams/client"
         option nukleus:route 1234L
-        option nukleus:window 8192
 connected
 
 write "Hello" ", " "world"

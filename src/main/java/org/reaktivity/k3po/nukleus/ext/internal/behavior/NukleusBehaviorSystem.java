@@ -19,13 +19,11 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.stream.Collectors.toList;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusExtensionKind.BEGIN;
-import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusExtensionKind.DATA;
-import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusExtensionKind.END;
+import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusExtensionKind.WRITE;
 import static org.reaktivity.k3po.nukleus.ext.internal.types.NukleusTypeSystem.CONFIG_BEGIN_EXT;
-import static org.reaktivity.k3po.nukleus.ext.internal.types.NukleusTypeSystem.CONFIG_DATA_EMPTY;
-import static org.reaktivity.k3po.nukleus.ext.internal.types.NukleusTypeSystem.CONFIG_DATA_EXT;
-import static org.reaktivity.k3po.nukleus.ext.internal.types.NukleusTypeSystem.CONFIG_DATA_NULL;
-import static org.reaktivity.k3po.nukleus.ext.internal.types.NukleusTypeSystem.CONFIG_END_EXT;
+import static org.reaktivity.k3po.nukleus.ext.internal.types.NukleusTypeSystem.CONFIG_WRITE_EMPTY;
+import static org.reaktivity.k3po.nukleus.ext.internal.types.NukleusTypeSystem.CONFIG_WRITE_EXT;
+import static org.reaktivity.k3po.nukleus.ext.internal.types.NukleusTypeSystem.CONFIG_WRITE_NULL;
 import static org.reaktivity.k3po.nukleus.ext.internal.types.NukleusTypeSystem.OPTION_PARTITION;
 
 import java.util.LinkedHashMap;
@@ -56,10 +54,9 @@ import org.kaazing.k3po.lang.types.TypeInfo;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.config.NukleusExtensionDecoder;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.config.NukleusExtensionEncoder;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.config.ReadBeginExtHandler;
-import org.reaktivity.k3po.nukleus.ext.internal.behavior.config.ReadDataExtHandler;
-import org.reaktivity.k3po.nukleus.ext.internal.behavior.config.ReadEndExtHandler;
-import org.reaktivity.k3po.nukleus.ext.internal.behavior.config.ReadNullDataHandler;
-import org.reaktivity.k3po.nukleus.ext.internal.behavior.config.WriteEmptyDataHandler;
+import org.reaktivity.k3po.nukleus.ext.internal.behavior.config.ReadWriteExtHandler;
+import org.reaktivity.k3po.nukleus.ext.internal.behavior.config.ReadNullRegionsHandler;
+import org.reaktivity.k3po.nukleus.ext.internal.behavior.config.WriteEmptyRegionsHandler;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.option.ReadPartitionHandler;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.option.WritePartitionHandler;
 
@@ -78,16 +75,14 @@ public class NukleusBehaviorSystem implements BehaviorSystemSpi
 
         Map<StructuredTypeInfo, ReadConfigFactory> readConfigFactories = new LinkedHashMap<>();
         readConfigFactories.put(CONFIG_BEGIN_EXT, NukleusBehaviorSystem::newReadBeginExtHandler);
-        readConfigFactories.put(CONFIG_DATA_EXT, NukleusBehaviorSystem::newReadDataExtHandler);
-        readConfigFactories.put(CONFIG_DATA_NULL, NukleusBehaviorSystem::newReadNullDataHandler);
-        readConfigFactories.put(CONFIG_END_EXT, NukleusBehaviorSystem::newReadEndExtHandler);
+        readConfigFactories.put(CONFIG_WRITE_EXT, NukleusBehaviorSystem::newReadWriteExtHandler);
+        readConfigFactories.put(CONFIG_WRITE_NULL, NukleusBehaviorSystem::newReadNullRegionsHandler);
         this.readConfigFactories = unmodifiableMap(readConfigFactories);
 
         Map<StructuredTypeInfo, WriteConfigFactory> writeConfigFactories = new LinkedHashMap<>();
         writeConfigFactories.put(CONFIG_BEGIN_EXT, NukleusBehaviorSystem::newWriteBeginExtHandler);
-        writeConfigFactories.put(CONFIG_DATA_EMPTY, NukleusBehaviorSystem::newWriteEmptyDataHandler);
-        writeConfigFactories.put(CONFIG_DATA_EXT, NukleusBehaviorSystem::newWriteDataExtHandler);
-        writeConfigFactories.put(CONFIG_END_EXT, NukleusBehaviorSystem::newWriteEndExtHandler);
+        writeConfigFactories.put(CONFIG_WRITE_EMPTY, NukleusBehaviorSystem::newWriteEmptyRegionsHandler);
+        writeConfigFactories.put(CONFIG_WRITE_EXT, NukleusBehaviorSystem::newWriteWriteExtHandler);
         this.writeConfigFactories = unmodifiableMap(writeConfigFactories);
     }
 
@@ -178,7 +173,7 @@ public class NukleusBehaviorSystem implements BehaviorSystemSpi
         return handler;
     }
 
-    private static ReadDataExtHandler newReadDataExtHandler(
+    private static ReadWriteExtHandler newReadWriteExtHandler(
         AstReadConfigNode node,
         Function<AstValueMatcher, MessageDecoder> decoderFactory)
     {
@@ -186,30 +181,17 @@ public class NukleusBehaviorSystem implements BehaviorSystemSpi
         StructuredTypeInfo type = node.getType();
         List<MessageDecoder> decoders = node.getMatchers().stream().map(decoderFactory).collect(toList());
 
-        ReadDataExtHandler handler = new ReadDataExtHandler(new NukleusExtensionDecoder(DATA, type, decoders));
+        ReadWriteExtHandler handler = new ReadWriteExtHandler(new NukleusExtensionDecoder(WRITE, type, decoders));
         handler.setRegionInfo(regionInfo);
         return handler;
     }
 
-    private static ChannelHandler newReadNullDataHandler(
+    private static ChannelHandler newReadNullRegionsHandler(
         AstReadConfigNode node,
         Function<AstValueMatcher, MessageDecoder> decoderFactory)
     {
         RegionInfo regionInfo = node.getRegionInfo();
-        ReadNullDataHandler handler = new ReadNullDataHandler();
-        handler.setRegionInfo(regionInfo);
-        return handler;
-    }
-
-    private static ReadEndExtHandler newReadEndExtHandler(
-        AstReadConfigNode node,
-        Function<AstValueMatcher, MessageDecoder> decoderFactory)
-    {
-        RegionInfo regionInfo = node.getRegionInfo();
-        StructuredTypeInfo type = node.getType();
-        List<MessageDecoder> decoders = node.getMatchers().stream().map(decoderFactory).collect(toList());
-
-        ReadEndExtHandler handler = new ReadEndExtHandler(new NukleusExtensionDecoder(END, type, decoders));
+        ReadNullRegionsHandler handler = new ReadNullRegionsHandler();
         handler.setRegionInfo(regionInfo);
         return handler;
     }
@@ -226,35 +208,23 @@ public class NukleusBehaviorSystem implements BehaviorSystemSpi
         return handler;
     }
 
-    private static WriteConfigHandler newWriteDataExtHandler(
+    private static WriteConfigHandler newWriteWriteExtHandler(
         AstWriteConfigNode node,
         Function<AstValue<?>, MessageEncoder> encoderFactory)
     {
         StructuredTypeInfo type = node.getType();
         List<MessageEncoder> encoders = node.getValues().stream().map(encoderFactory).collect(toList());
 
-        WriteConfigHandler handler = new WriteConfigHandler(new NukleusExtensionEncoder(DATA, type, encoders));
+        WriteConfigHandler handler = new WriteConfigHandler(new NukleusExtensionEncoder(WRITE, type, encoders));
         handler.setRegionInfo(node.getRegionInfo());
         return handler;
     }
 
-    private static WriteEmptyDataHandler newWriteEmptyDataHandler(
+    private static WriteEmptyRegionsHandler newWriteEmptyRegionsHandler(
         AstWriteConfigNode node,
         Function<AstValue<?>, MessageEncoder> encoderFactory)
     {
-        WriteEmptyDataHandler handler = new WriteEmptyDataHandler();
-        handler.setRegionInfo(node.getRegionInfo());
-        return handler;
-    }
-
-    private static WriteConfigHandler newWriteEndExtHandler(
-        AstWriteConfigNode node,
-        Function<AstValue<?>, MessageEncoder> encoderFactory)
-    {
-        StructuredTypeInfo type = node.getType();
-        List<MessageEncoder> encoders = node.getValues().stream().map(encoderFactory).collect(toList());
-
-        WriteConfigHandler handler = new WriteConfigHandler(new NukleusExtensionEncoder(END, type, encoders));
+        WriteEmptyRegionsHandler handler = new WriteEmptyRegionsHandler();
         handler.setRegionInfo(node.getRegionInfo());
         return handler;
     }

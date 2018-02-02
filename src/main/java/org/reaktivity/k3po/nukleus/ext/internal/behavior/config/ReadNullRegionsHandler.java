@@ -24,9 +24,9 @@ import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.MessageEvent;
 import org.kaazing.k3po.driver.internal.behavior.handler.event.AbstractEventHandler;
 
-public class ReadNullDataHandler extends AbstractEventHandler
+public class ReadNullRegionsHandler extends AbstractEventHandler
 {
-    public ReadNullDataHandler()
+    public ReadNullRegionsHandler()
     {
         super(EnumSet.of(ChannelEventKind.MESSAGE));
     }

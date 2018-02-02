@@ -18,5 +18,4 @@ property newRouteRef 1234L # external
 
 connect "nukleus://server/streams/client"
         option nukleus:route ${newRouteRef}
-        option nukleus:window 8192
 connected

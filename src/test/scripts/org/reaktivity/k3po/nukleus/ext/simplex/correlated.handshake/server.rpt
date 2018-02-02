@@ -18,7 +18,6 @@ property newRouteRef ${nukleus:newRouteRef()} # external
 
 accept "nukleus://server/streams/client"
        option nukleus:route ${newRouteRef}
-       option nukleus:window 8192
        option nukleus:transmission "duplex"
 
 accepted
