@@ -19,5 +19,5 @@ connect "nukleus://server/streams/client"
         option nukleus:transmission "duplex"
 connected
 
-read nukleus:write.ext [0x12 0x34] [0x0c] "Hello, world"
+read nukleus:transfer.ext [0x12 0x34] [0x0c] "Hello, world"
 read closed

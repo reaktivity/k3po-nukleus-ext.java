@@ -27,7 +27,7 @@ import static org.kaazing.k3po.driver.internal.netty.channel.Channels.fireFlushe
 import static org.kaazing.k3po.driver.internal.netty.channel.Channels.fireOutputAborted;
 import static org.kaazing.k3po.driver.internal.netty.channel.Channels.fireOutputShutdown;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusExtensionKind.BEGIN;
-import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusExtensionKind.WRITE;
+import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusExtensionKind.TRANSFER;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusFlags.FIN;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusFlags.RST;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NullChannelBuffer.NULL_BUFFER;
@@ -58,7 +58,7 @@ import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.AckFW;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.BeginFW;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.FrameFW;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.RegionFW;
-import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.WriteFW;
+import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.TransferFW;
 import org.reaktivity.k3po.nukleus.ext.internal.util.function.LongObjectBiConsumer;
 
 final class NukleusTarget implements AutoCloseable
@@ -66,10 +66,10 @@ final class NukleusTarget implements AutoCloseable
     private final FrameFW frameRO = new FrameFW();
 
     private final BeginFW.Builder beginRW = new BeginFW.Builder();
-    private final WriteFW.Builder writeRW = new WriteFW.Builder();
+    private final TransferFW.Builder transferRW = new TransferFW.Builder();
+
     private final AckFW ackRO = new AckFW();
     private final AckFW.Builder ackRW = new AckFW.Builder();
-
 
     private final Path partitionPath;
     private final Layout layout;
@@ -266,7 +266,7 @@ final class NukleusTarget implements AutoCloseable
     {
         doFlushBegin(channel);
 
-        if (channel.writeExtBuffer(WRITE, true).readable())
+        if (channel.writeExtBuffer(TRANSFER, true).readable())
         {
             if (channel.writeRequests.isEmpty())
             {
@@ -292,13 +292,13 @@ final class NukleusTarget implements AutoCloseable
         final long streamId = channel.targetId();
         long authorization = channel.targetAuth();
 
-        final WriteFW abort = writeRW.wrap(writeBuffer, 0, writeBuffer.capacity())
+        final TransferFW transfer = transferRW.wrap(writeBuffer, 0, writeBuffer.capacity())
                 .streamId(streamId)
                 .authorization(authorization)
                 .flags(RST.flag())
                 .build();
 
-        streamsBuffer.write(abort.typeId(), abort.buffer(), abort.offset(), abort.sizeof());
+        streamsBuffer.write(transfer.typeId(), transfer.buffer(), transfer.offset(), transfer.sizeof());
 
         abortFuture.setSuccess();
     }
@@ -312,18 +312,18 @@ final class NukleusTarget implements AutoCloseable
         final long streamId = channel.targetId();
         final long authorization = channel.targetAuth();
 
-        final ChannelBuffer writeExt = channel.writeExtBuffer(WRITE, true);
+        final ChannelBuffer writeExt = channel.writeExtBuffer(TRANSFER, true);
         final int writableExtBytes = writeExt.readableBytes();
         final byte[] writeExtCopy = writeExtCopy(writeExt);
 
-        final WriteFW end = writeRW.wrap(writeBuffer, 0, writeBuffer.capacity())
+        final TransferFW transfer = transferRW.wrap(writeBuffer, 0, writeBuffer.capacity())
                 .streamId(streamId)
                 .authorization(authorization)
                 .flags(FIN.flag())
                 .extension(p -> p.set(writeExtCopy))
                 .build();
 
-        streamsBuffer.write(end.typeId(), end.buffer(), end.offset(), end.sizeof());
+        streamsBuffer.write(transfer.typeId(), transfer.buffer(), transfer.offset(), transfer.sizeof());
 
         writeExt.skipBytes(writableExtBytes);
         writeExt.discardReadBytes();
@@ -348,13 +348,13 @@ final class NukleusTarget implements AutoCloseable
         final long streamId = channel.targetId();
         final long authorization = channel.targetAuth();
 
-        final WriteFW end = writeRW.wrap(writeBuffer, 0, writeBuffer.capacity())
+        final TransferFW transfer = transferRW.wrap(writeBuffer, 0, writeBuffer.capacity())
                 .streamId(streamId)
                 .authorization(authorization)
                 .flags(FIN.flag())
                 .build();
 
-        streamsBuffer.write(end.typeId(), end.buffer(), end.offset(), end.sizeof());
+        streamsBuffer.write(transfer.typeId(), transfer.buffer(), transfer.offset(), transfer.sizeof());
 
         handlerFuture.setSuccess();
 
@@ -391,9 +391,9 @@ final class NukleusTarget implements AutoCloseable
         {
             MessageEvent writeRequest = writeRequests.peekFirst();
             ChannelBuffer writeBuf = (ChannelBuffer) writeRequest.getMessage();
-            ChannelBuffer writeExt = channel.writeExtBuffer(WRITE, true);
+            ChannelBuffer transferExt = channel.writeExtBuffer(TRANSFER, true);
 
-            if (writeBuf.readable() || writeExt.readable())
+            if (writeBuf.readable() || transferExt.readable())
             {
                 final boolean flushing = writeBuf == NULL_BUFFER;
                 final int writeBytes = writeBuf.readableBytes();
@@ -401,21 +401,21 @@ final class NukleusTarget implements AutoCloseable
                 // allow extension-only WRITE frames to be flushed immediately
                 if (channel.writableBytes() >= writeBytes || !writeBuf.readable())
                 {
-                    final int writableExtBytes = writeExt.readableBytes();
-                    final byte[] writeExtCopy = writeExtCopy(writeExt);
+                    final int writableExtBytes = transferExt.readableBytes();
+                    final byte[] transferExtCopy = writeExtCopy(transferExt);
 
                     final long streamId = channel.targetId();
-                    final WriteFW data = writeRW.wrap(writeBuffer, 0, writeBuffer.capacity())
+                    final TransferFW transfer = transferRW.wrap(writeBuffer, 0, writeBuffer.capacity())
                             .streamId(streamId)
                             .authorization(authorization)
                             .regions(rs -> channel.flushBytes(rs, writeBuf, writeBytes))
-                            .extension(p -> p.set(writeExtCopy))
+                            .extension(p -> p.set(transferExtCopy))
                             .build();
 
-                    streamsBuffer.write(data.typeId(), data.buffer(), data.offset(), data.sizeof());
+                    streamsBuffer.write(transfer.typeId(), transfer.buffer(), transfer.offset(), transfer.sizeof());
 
-                    writeExt.skipBytes(writableExtBytes);
-                    writeExt.discardReadBytes();
+                    transferExt.skipBytes(writableExtBytes);
+                    transferExt.discardReadBytes();
 
                     writeRequests.removeFirst();
                     writeRequest.getFuture().setSuccess();

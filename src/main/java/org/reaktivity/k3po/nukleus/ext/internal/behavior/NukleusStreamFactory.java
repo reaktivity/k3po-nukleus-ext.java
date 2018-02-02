@@ -24,7 +24,7 @@ import static org.jboss.netty.channel.Channels.fireMessageReceived;
 import static org.kaazing.k3po.driver.internal.netty.channel.Channels.fireInputAborted;
 import static org.kaazing.k3po.driver.internal.netty.channel.Channels.fireInputShutdown;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusExtensionKind.BEGIN;
-import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusExtensionKind.WRITE;
+import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusExtensionKind.TRANSFER;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusFlags.FIN;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusFlags.RST;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NullChannelBuffer.NULL_BUFFER;
@@ -45,12 +45,12 @@ import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.ListFW;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.OctetsFW;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.BeginFW;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.RegionFW;
-import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.WriteFW;
+import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.TransferFW;
 
 public final class NukleusStreamFactory
 {
     private final BeginFW beginRO = new BeginFW();
-    private final WriteFW writeRO = new WriteFW();
+    private final TransferFW transferRO = new TransferFW();
 
     private final LongConsumer unregisterStream;
 
@@ -96,9 +96,9 @@ public final class NukleusStreamFactory
                 BeginFW begin = beginRO.wrap(buffer, index, index + length);
                 onBegin(begin);
                 break;
-            case WriteFW.TYPE_ID:
-                WriteFW write = writeRO.wrap(buffer, index, index + length);
-                onWrite(write);
+            case TransferFW.TYPE_ID:
+                TransferFW transfer = transferRO.wrap(buffer, index, index + length);
+                onTransfer(transfer);
                 break;
             }
         }
@@ -134,30 +134,30 @@ public final class NukleusStreamFactory
             handshakeFuture.setSuccess();
         }
 
-        private void onWrite(
-            WriteFW write)
+        private void onTransfer(
+            TransferFW transfer)
         {
-            final long streamId = write.streamId();
-            final ListFW<RegionFW> regions = write.regions();
-            final OctetsFW writeExt = write.extension();
-            final int flags = write.flags();
+            final long streamId = transfer.streamId();
+            final ListFW<RegionFW> regions = transfer.regions();
+            final OctetsFW transferExt = transfer.extension();
+            final int flags = transfer.flags();
 
             final ByteOrder byteOrder = channel.getConfig().getBufferFactory().getDefaultOrder();
-            final ChannelBuffer message = toChannelBuffer(byteOrder, flags, regions, writeExt);
+            final ChannelBuffer message = toChannelBuffer(byteOrder, flags, regions, transferExt);
 
-            if (write.authorization() == channel.sourceAuth())
+            if (transfer.authorization() == channel.sourceAuth())
             {
-                int writeExtBytes = writeExt.sizeof();
-                if (writeExtBytes != 0)
+                int transferExtBytes = transferExt.sizeof();
+                if (transferExtBytes != 0)
                 {
-                    final DirectBuffer buffer = writeExt.buffer();
-                    final int offset = writeExt.offset();
+                    final DirectBuffer buffer = transferExt.buffer();
+                    final int offset = transferExt.offset();
 
                     // TODO: avoid allocation
-                    final byte[] writeExtCopy = new byte[writeExtBytes];
-                    buffer.getBytes(offset, writeExtCopy);
+                    final byte[] transferExtCopy = new byte[transferExtBytes];
+                    buffer.getBytes(offset, transferExtCopy);
 
-                    channel.readExtBuffer(WRITE).writeBytes(writeExtCopy);
+                    channel.readExtBuffer(TRANSFER).writeBytes(transferExtCopy);
                 }
 
                 if (message != null)
@@ -170,7 +170,7 @@ public final class NukleusStreamFactory
 
             if (RST.check(flags))
             {
-                if (write.authorization() != channel.sourceAuth())
+                if (transfer.authorization() != channel.sourceAuth())
                 {
                     ackFlags = RST.set(ackFlags);
                 }
@@ -184,7 +184,7 @@ public final class NukleusStreamFactory
             }
             else if (FIN.check(flags))
             {
-                if (write.authorization() != channel.sourceAuth())
+                if (transfer.authorization() != channel.sourceAuth())
                 {
                     ackFlags = RST.set(ackFlags);
                 }

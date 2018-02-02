@@ -103,30 +103,30 @@ public class SimplexIT
 
     @Test
     @Specification({
-        "client.sent.data/client",
-        "client.sent.data/server"
+        "client.sent.transfer/client",
+        "client.sent.transfer/server"
     })
-    public void shouldReceiveClientSentData() throws Exception
+    public void shouldReceiveClientSentTransfer() throws Exception
     {
         k3po.finish();
     }
 
     @Test
     @Specification({
-        "client.sent.data.ext/client",
-        "client.sent.data.ext/server"
+        "client.sent.transfer.ext/client",
+        "client.sent.transfer.ext/server"
     })
-    public void shouldReceiveClientSentDataWithExtension() throws Exception
+    public void shouldReceiveClientSentTransferWithExtension() throws Exception
     {
         k3po.finish();
     }
 
     @Test
     @Specification({
-        "client.sent.data.missing.ext/client",
-        "client.sent.data.missing.ext/server"
+        "client.sent.transfer.missing.ext/client",
+        "client.sent.transfer.missing.ext/server"
     })
-    public void shouldRejectClientSentDataMissingExtension() throws Exception
+    public void shouldRejectClientSentTransferMissingExtension() throws Exception
     {
         thrown.expect(anyOf(isA(ComparisonFailure.class),
                             hasProperty("failures", hasItem(isA(ComparisonFailure.class)))));
@@ -185,30 +185,30 @@ public class SimplexIT
 
     @Test
     @Specification({
-        "client.flush.empty.data.with.ext/client",
-        "client.flush.empty.data.with.ext/server"
+        "client.flush.empty.transfer.with.ext/client",
+        "client.flush.empty.transfer.with.ext/server"
     })
-    public void shouldReceiveClientFlushedEmptyDataWithExtension() throws Exception
+    public void shouldReceiveClientFlushedEmptyTransferWithExtension() throws Exception
     {
         k3po.finish();
     }
 
     @Test
     @Specification({
-        "client.write.empty.data.with.ext/client",
-        "client.write.empty.data.with.ext/server"
+        "client.write.empty.transfer.with.ext/client",
+        "client.write.empty.transfer.with.ext/server"
     })
-    public void shouldReceiveClientWrittenEmptyDataWithExtension() throws Exception
+    public void shouldReceiveClientWrittenEmptyTransferWithExtension() throws Exception
     {
         k3po.finish();
     }
 
     @Test
     @Specification({
-        "client.flush.null.data.with.ext/client",
-        "client.flush.null.data.with.ext/server"
+        "client.flush.null.transfer.with.ext/client",
+        "client.flush.null.transfer.with.ext/server"
     })
-    public void shouldReceiveClientFlushedNullDataWithExtension() throws Exception
+    public void shouldReceiveClientFlushedNullTransferWithExtension() throws Exception
     {
         k3po.finish();
     }

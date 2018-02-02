@@ -98,30 +98,30 @@ public class HalfDuplexIT
 
     @Test
     @Specification({
-        "client.sent.data/client",
-        "client.sent.data/server"
+        "client.sent.transfer/client",
+        "client.sent.transfer/server"
     })
-    public void shouldReceiveClientSentData() throws Exception
+    public void shouldReceiveClientSentTransfer() throws Exception
     {
         k3po.finish();
     }
 
     @Test
     @Specification({
-        "client.sent.data.ext/client",
-        "client.sent.data.ext/server"
+        "client.sent.transfer.ext/client",
+        "client.sent.transfer.ext/server"
     })
-    public void shouldReceiveClientSentDataWithExtension() throws Exception
+    public void shouldReceiveClientSentTransferWithExtension() throws Exception
     {
         k3po.finish();
     }
 
     @Test
     @Specification({
-        "client.sent.data.missing.ext/client",
-        "client.sent.data.missing.ext/server"
+        "client.sent.transfer.missing.ext/client",
+        "client.sent.transfer.missing.ext/server"
     })
-    public void shouldRejectClientSentDataMissingExtension() throws Exception
+    public void shouldRejectClientSentTransferMissingExtension() throws Exception
     {
         thrown.expect(hasProperty("failures", contains(asList(instanceOf(ComparisonFailure.class),
                                                               instanceOf(TestTimedOutException.class)))));
@@ -130,30 +130,30 @@ public class HalfDuplexIT
 
     @Test
     @Specification({
-        "server.sent.data/client",
-        "server.sent.data/server"
+        "server.sent.transfer/client",
+        "server.sent.transfer/server"
     })
-    public void shouldReceiveServerSentData() throws Exception
+    public void shouldReceiveServerSentTransfer() throws Exception
     {
         k3po.finish();
     }
 
     @Test
     @Specification({
-        "server.sent.data.ext/client",
-        "server.sent.data.ext/server"
+        "server.sent.transfer.ext/client",
+        "server.sent.transfer.ext/server"
     })
-    public void shouldReceiveServerSentDataWithExtension() throws Exception
+    public void shouldReceiveServerSentTransferWithExtension() throws Exception
     {
         k3po.finish();
     }
 
     @Test
     @Specification({
-        "server.sent.data.missing.ext/client",
-        "server.sent.data.missing.ext/server"
+        "server.sent.transfer.missing.ext/client",
+        "server.sent.transfer.missing.ext/server"
     })
-    public void shouldRejectServerSentDataWithMissingExtension() throws Exception
+    public void shouldRejectServerSentTransferWithMissingExtension() throws Exception
     {
         thrown.expect(anyOf(isA(ComparisonFailure.class),
                             hasProperty("failures", hasItem(isA(ComparisonFailure.class)))));
@@ -285,50 +285,50 @@ public class HalfDuplexIT
 
     @Test
     @Specification({
-        "client.flush.empty.data.with.ext/client",
-        "client.flush.empty.data.with.ext/server"
+        "client.flush.empty.transfer.with.ext/client",
+        "client.flush.empty.transfer.with.ext/server"
     })
-    public void shouldReceiveClientFlushedEmptyDataWithExtension() throws Exception
+    public void shouldReceiveClientFlushedEmptyTransferWithExtension() throws Exception
     {
         k3po.finish();
     }
 
     @Test
     @Specification({
-        "client.flush.null.data.with.ext/client",
-        "client.flush.null.data.with.ext/server"
+        "client.flush.null.transfer.with.ext/client",
+        "client.flush.null.transfer.with.ext/server"
     })
-    public void shouldReceiveClientFlushedNullDataWithExtension() throws Exception
+    public void shouldReceiveClientFlushedNullTransferWithExtension() throws Exception
     {
         k3po.finish();
     }
 
     @Test
     @Specification({
-        "server.flush.empty.data.with.ext/client",
-        "server.flush.empty.data.with.ext/server"
+        "server.flush.empty.transfer.with.ext/client",
+        "server.flush.empty.transfer.with.ext/server"
     })
-    public void shouldReceiveServerFlushedEmptyDataWithExtension() throws Exception
+    public void shouldReceiveServerFlushedEmptyTransferWithExtension() throws Exception
     {
         k3po.finish();
     }
 
     @Test
     @Specification({
-        "server.flush.null.data.with.ext/client",
-        "server.flush.null.data.with.ext/server"
+        "server.flush.null.transfer.with.ext/client",
+        "server.flush.null.transfer.with.ext/server"
     })
-    public void shouldReceiveServerFlushedNullDataWithExtension() throws Exception
+    public void shouldReceiveServerFlushedNullTransferWithExtension() throws Exception
     {
         k3po.finish();
     }
 
     @Test
     @Specification({
-        "server.write.empty.data.with.ext/client",
-        "server.write.empty.data.with.ext/server"
+        "server.write.empty.transfer.with.ext/client",
+        "server.write.empty.transfer.with.ext/server"
     })
-    public void shouldReceiveServerWrittenEmptyDataWithExtension() throws Exception
+    public void shouldReceiveServerWrittenEmptyTransferWithExtension() throws Exception
     {
         k3po.finish();
     }
