@@ -29,6 +29,7 @@ import java.nio.MappedByteBuffer;
 import java.nio.file.Path;
 
 import org.agrona.CloseHelper;
+import org.agrona.DirectBuffer;
 import org.agrona.MutableDirectBuffer;
 import org.agrona.concurrent.AtomicBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
@@ -150,7 +151,6 @@ public final class MemoryLayout extends Layout
                 CloseHelper.close(createEmptyFile(memory, metadataSizeAligned + capacity));
 
                 final MappedByteBuffer mappedMetadata = mapExistingFile(memory, "metadata", 0, metadataSizeAligned);
-
                 final MappedByteBuffer mappedMemory = mapExistingFile(memory, "memory", metadataSizeAligned, capacity);
 
                 final AtomicBuffer metadataBuffer = new UnsafeBuffer(mappedMetadata);
@@ -165,8 +165,9 @@ public final class MemoryLayout extends Layout
             else
             {
                 final MappedByteBuffer mappedBootstrap = mapExistingFile(memory, "bootstrap", 0, BTREE_OFFSET);
-                final int minimumBlockSize = mappedBootstrap.getInt(MINIMUM_BLOCK_SIZE_OFFSET);
-                final int maximumBlockSize = mappedBootstrap.getInt(MAXIMUM_BLOCK_SIZE_OFFSET);
+                final DirectBuffer bootstrapBuffer = new UnsafeBuffer(mappedBootstrap);
+                final int minimumBlockSize = bootstrapBuffer.getInt(MINIMUM_BLOCK_SIZE_OFFSET);
+                final int maximumBlockSize = bootstrapBuffer.getInt(MAXIMUM_BLOCK_SIZE_OFFSET);
                 unmap(mappedBootstrap);
 
                 final int metadataSize = BTREE_OFFSET + sizeofBTree(minimumBlockSize, maximumBlockSize);

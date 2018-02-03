@@ -15,6 +15,8 @@
  */
 package org.reaktivity.k3po.nukleus.ext.internal.behavior.memory;
 
+import static java.lang.Integer.numberOfTrailingZeros;
+import static java.lang.Math.max;
 import static org.agrona.BitUtil.findNextPositivePowerOfTwo;
 
 import java.util.Random;
@@ -168,12 +170,7 @@ public class DefaultMemoryManager implements MemoryManager
 
     private int calculateOrder(int blockSize)
     {
-        int order = 0;
-        while (maximumBlockSize >> order != blockSize)
-        {
-            order++;
-        }
-        return order;
+        return max(numberOfTrailingZeros(maximumBlockSize) - numberOfTrailingZeros(blockSize), 0);
     }
 
     private int calculateBlockSize(
