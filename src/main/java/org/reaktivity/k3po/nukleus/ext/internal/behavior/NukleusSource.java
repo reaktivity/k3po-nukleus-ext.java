@@ -20,6 +20,7 @@ import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusFlags.RST
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.BiFunction;
 import java.util.function.LongFunction;
 
@@ -208,12 +209,37 @@ public final class NukleusSource implements AutoCloseable
                 .build();
 
         NukleusPartition partition = new NukleusPartition(partitionPath, layout,
-                (r, a) -> routesByRefAndAuth.computeIfAbsent(r, key -> new Long2ObjectHashMap<NukleusServerChannel>()).get(a),
+                this::lookupServerChannel,
                 streamsById::get, streamsById::put,
                 writeBuffer, streamFactory, correlateEstablished, supplyTarget);
 
         this.partitions = ArrayUtil.add(this.partitions, partition);
 
         return partition;
+    }
+
+    private NukleusServerChannel lookupServerChannel(
+        long routeRef,
+        long authorization)
+    {
+        final Long2ObjectHashMap<NukleusServerChannel> routeAuthorizations =
+                routesByRefAndAuth.computeIfAbsent(routeRef, key -> new Long2ObjectHashMap<>());
+
+        NukleusServerChannel serverChannel = routeAuthorizations.get(authorization);
+
+        if (serverChannel == null)
+        {
+            for (Entry<Long, NukleusServerChannel> entry : routeAuthorizations.entrySet())
+            {
+                final long routeAuthorization = entry.getKey();
+                if ((routeAuthorization & authorization) == routeAuthorization)
+                {
+                    serverChannel = entry.getValue();
+                    break;
+                }
+            }
+        }
+
+        return serverChannel;
     }
 }
