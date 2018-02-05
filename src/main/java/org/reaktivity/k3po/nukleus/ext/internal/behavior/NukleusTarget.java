@@ -523,6 +523,7 @@ final class NukleusTarget implements AutoCloseable
             else
             {
                 channel.acknowledge(regions);
+                flushThrottledWrites(channel);
             }
         }
 
