@@ -10,4 +10,12 @@
 s/^abort$/read abort/
 s/^aborted$/write aborted/
 
+#
+# nukleus:window
+# nukleus:throttle
+# nukleus:padding
+#
+/nukleus\:window/d
+/nukleus\:throttle/d
+/nukleus\:padding/d
 
