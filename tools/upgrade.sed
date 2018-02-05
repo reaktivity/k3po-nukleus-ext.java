@@ -19,3 +19,14 @@ s/^aborted$/write aborted/
 /nukleus\:throttle/d
 /nukleus\:padding/d
 
+#
+# nukleus:data.ext
+# nukleus:data.empty
+# nukleus:data.null
+# nukleus:end.ext
+#
+s/nukleus\:data.ext/nukleus\:transfer.ext/
+s/nukleus\:data.empty/nukleus\:transfer.empty/
+s/nukleus\:data.null/nukleus\:transfer.null/
+s/nukleus\:end.ext/nukleus\:transfer.ext/
+
