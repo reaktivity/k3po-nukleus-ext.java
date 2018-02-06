@@ -13,10 +13,12 @@ s/^aborted$/write aborted/
 #
 # nukleus:window
 # nukleus:throttle
+# nukleus:update
 # nukleus:padding
 #
 /nukleus\:window/d
 /nukleus\:throttle/d
+/nukleus\:update/d
 /nukleus\:padding/d
 
 #
