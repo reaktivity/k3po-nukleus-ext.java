@@ -48,6 +48,7 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
 
     final NukleusReaktor reaktor;
     final Deque<MessageEvent> writeRequests;
+    final long writeAddressBase;
     final MutableDirectBuffer writeBuffer;
 
     private NukleusExtensionKind readExtKind;
@@ -62,7 +63,6 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     private int readerIndex;
     private int writerIndex;
     private int ackCount;
-
 
     NukleusChannel(
         NukleusServerChannel parent,
@@ -80,7 +80,9 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         final int capacity = 64 * 1024; // TODO: configurable?
         final UnsafeBuffer buffer = new UnsafeBuffer(new byte[0]);
         final long address = reaktor.acquire(capacity);
-        buffer.wrap(address, capacity);
+        final long resolvedAddress = reaktor.resolve(address);
+        buffer.wrap(resolvedAddress, capacity);
+        this.writeAddressBase = address;
         this.writeBuffer = buffer;
 
         getCloseFuture().addListener(f -> reaktor.release(address, capacity));
@@ -311,7 +313,7 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     {
         final ByteBuffer byteBuffer = writeBuf.toByteBuffer();
         final int writtenBytes = byteBuffer.remaining();
-        final long writeAddress = writeBuffer.addressOffset() + writerIndex;
+        final long writeAddress = writeAddressBase + writerIndex;
 
         writeBuffer.putBytes(writerIndex, byteBuffer, writtenBytes);
         writerIndex += writtenBytes;

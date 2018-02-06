@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.BiFunction;
 import java.util.function.LongFunction;
+import java.util.function.LongUnaryOperator;
 
 import org.agrona.CloseHelper;
 import org.agrona.MutableDirectBuffer;
@@ -56,6 +57,7 @@ public final class NukleusSource implements AutoCloseable
     public NukleusSource(
         Configuration config,
         Path streamsDirectory,
+        LongUnaryOperator resolveMemory,
         String sourceName,
         MutableDirectBuffer writeBuffer,
         LongFunction<NukleusCorrelation> correlateEstablished,
@@ -68,7 +70,7 @@ public final class NukleusSource implements AutoCloseable
         this.streamsById = new Long2ObjectHashMap<>();
         this.partitionsByName = new LinkedHashMap<>();
         this.partitions = new NukleusPartition[0];
-        this.streamFactory = new NukleusStreamFactory(streamsById::remove);
+        this.streamFactory = new NukleusStreamFactory(resolveMemory, streamsById::remove);
         this.correlateEstablished = correlateEstablished;
         this.supplyTarget = supplyTarget;
     }

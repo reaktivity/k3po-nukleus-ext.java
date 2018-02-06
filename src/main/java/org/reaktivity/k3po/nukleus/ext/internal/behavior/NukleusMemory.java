@@ -36,6 +36,13 @@ public final class NukleusMemory implements MemoryManager, AutoCloseable
     }
 
     @Override
+    public long resolve(
+        long address)
+    {
+        return manager.resolve(address);
+    }
+
+    @Override
     public long acquire(int capacity)
     {
         return manager.acquire(capacity);

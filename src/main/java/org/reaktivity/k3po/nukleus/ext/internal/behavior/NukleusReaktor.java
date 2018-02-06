@@ -77,6 +77,12 @@ public final class NukleusReaktor implements Runnable, ExternalResourceReleasabl
         return memory.acquire(capacity);
     }
 
+    public long resolve(
+        long address)
+    {
+        return memory.resolve(address);
+    }
+
     public void release(
         long address,
         int capacity)
@@ -238,7 +244,7 @@ public final class NukleusReaktor implements Runnable, ExternalResourceReleasabl
     private NukleusScope newScope(
         Path scopePath)
     {
-        NukleusScope scope = new NukleusScope(config, scopePath, NukleusReaktor::watchService);
+        NukleusScope scope = new NukleusScope(config, scopePath, memory::resolve, NukleusReaktor::watchService);
         this.scopes = ArrayUtil.add(this.scopes, scope);
         return scope;
     }

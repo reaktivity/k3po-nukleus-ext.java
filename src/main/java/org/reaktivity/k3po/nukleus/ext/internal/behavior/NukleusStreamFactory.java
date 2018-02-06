@@ -32,6 +32,7 @@ import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NullChannelBuffe
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.function.LongConsumer;
+import java.util.function.LongUnaryOperator;
 
 import org.agrona.DirectBuffer;
 import org.agrona.MutableDirectBuffer;
@@ -52,11 +53,14 @@ public final class NukleusStreamFactory
     private final BeginFW beginRO = new BeginFW();
     private final TransferFW transferRO = new TransferFW();
 
+    private final LongUnaryOperator resolveMemory;
     private final LongConsumer unregisterStream;
 
     public NukleusStreamFactory(
+        LongUnaryOperator resolveMemory,
         LongConsumer unregisterStream)
     {
+        this.resolveMemory = resolveMemory;
         this.unregisterStream = unregisterStream;
     }
 
@@ -235,7 +239,8 @@ public final class NukleusStreamFactory
                     regions.forEach(r ->
                     {
                         final int length = r.length();
-                        view.wrap(r.address(), length);
+                        final long resolved = resolveMemory.applyAsLong(r.address());
+                        view.wrap(resolved, length);
                         view.getBytes(0, byteBuf, byteBuf.position(), length);
                         byteBuf.position(byteBuf.position() + length);
                     });
