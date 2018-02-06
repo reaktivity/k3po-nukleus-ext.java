@@ -80,6 +80,10 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         final int capacity = 64 * 1024; // TODO: configurable?
         final UnsafeBuffer buffer = new UnsafeBuffer(new byte[0]);
         final long address = reaktor.acquire(capacity);
+        if (address == -1L)
+        {
+            throw new IllegalStateException("Unable to allocate memory block: " + capacity);
+        }
         final long resolvedAddress = reaktor.resolve(address);
         buffer.wrap(resolvedAddress, capacity);
         this.writeAddressBase = address;
