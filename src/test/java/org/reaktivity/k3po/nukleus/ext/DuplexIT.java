@@ -142,6 +142,16 @@ public class DuplexIT
 
     @Test
     @Specification({
+        "client.sent.transfer.fragmented/client",
+        "client.sent.transfer.fragmented/server"
+    })
+    public void shouldReceiveClientSentTransferFragmented() throws Exception
+    {
+        k3po.finish();
+    }
+
+    @Test
+    @Specification({
         "client.sent.transfer.ext/client",
         "client.sent.transfer.ext/server"
     })

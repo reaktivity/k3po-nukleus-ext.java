@@ -303,26 +303,26 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     public void flushBytes(
         ListFW.Builder<RegionFW.Builder, RegionFW> regions,
         ChannelBuffer writeBuf,
-        int writeBytes)
+        int writableBytes)
     {
         if (writeBuf != NULL_BUFFER)
         {
-            final long address = flushBytes(writeBuf);
-            regions.item(r -> r.address(address).length(writeBytes));
+            final long address = flushBytes(writeBuf, writableBytes);
+            regions.item(r -> r.address(address).length(writableBytes));
         }
     }
 
     public long flushBytes(
-        ChannelBuffer writeBuf)
+        ChannelBuffer writeBuf,
+        int writableBytes)
     {
         final ByteBuffer byteBuffer = writeBuf.toByteBuffer();
-        final int writtenBytes = byteBuffer.remaining();
         final long writeAddress = writeAddressBase + writerIndex;
 
-        writeBuffer.putBytes(writerIndex, byteBuffer, writtenBytes);
-        writerIndex += writtenBytes;
+        writeBuffer.putBytes(writerIndex, byteBuffer, writableBytes);
+        writerIndex += writableBytes;
 
-        writeBuf.skipBytes(writtenBytes);
+        writeBuf.skipBytes(writableBytes);
 
         return writeAddress;
     }

@@ -387,7 +387,7 @@ final class NukleusTarget implements AutoCloseable
         final Deque<MessageEvent> writeRequests = channel.writeRequests;
         final long authorization = channel.targetAuth();
 
-        while (channel.isWritable() && !writeRequests.isEmpty())
+        while (channel.writableBytes() > 0 && !writeRequests.isEmpty())
         {
             MessageEvent writeRequest = writeRequests.peekFirst();
             ChannelBuffer writeBuf = (ChannelBuffer) writeRequest.getMessage();
@@ -397,9 +397,10 @@ final class NukleusTarget implements AutoCloseable
             {
                 final boolean flushing = writeBuf == NULL_BUFFER;
                 final int writeBytes = writeBuf.readableBytes();
+                final int writableBytes = Math.min(channel.writableBytes(), writeBytes);
 
                 // allow extension-only WRITE frames to be flushed immediately
-                if (channel.writableBytes() >= writeBytes || !writeBuf.readable())
+                if (writableBytes > 0 || !writeBuf.readable())
                 {
                     final int writableExtBytes = transferExt.readableBytes();
                     final byte[] transferExtCopy = writeExtCopy(transferExt);
@@ -408,7 +409,7 @@ final class NukleusTarget implements AutoCloseable
                     final TransferFW transfer = transferRW.wrap(writeBuffer, 0, writeBuffer.capacity())
                             .streamId(streamId)
                             .authorization(authorization)
-                            .regions(rs -> channel.flushBytes(rs, writeBuf, writeBytes))
+                            .regions(rs -> channel.flushBytes(rs, writeBuf, writableBytes))
                             .extension(p -> p.set(transferExtCopy))
                             .build();
 
@@ -417,8 +418,11 @@ final class NukleusTarget implements AutoCloseable
                     transferExt.skipBytes(writableExtBytes);
                     transferExt.discardReadBytes();
 
-                    writeRequests.removeFirst();
-                    writeRequest.getFuture().setSuccess();
+                    if (!writeBuf.readable())
+                    {
+                        writeRequests.removeFirst();
+                        writeRequest.getFuture().setSuccess();
+                    }
                 }
 
                 if (flushing)
