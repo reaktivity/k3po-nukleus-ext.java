@@ -75,7 +75,7 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
 
         this.reaktor = reaktor;
         this.writeRequests = new LinkedList<>();
-        this.targetId = getId();
+        this.targetId = ((long) getId()) | 0x8000000000000000L;
 
         final int capacity = 64 * 1024; // TODO: configurable?
         final UnsafeBuffer buffer = new UnsafeBuffer(new byte[0]);
@@ -303,12 +303,13 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     public void flushBytes(
         ListFW.Builder<RegionFW.Builder, RegionFW> regions,
         ChannelBuffer writeBuf,
-        int writableBytes)
+        int writableBytes,
+        long streamId)
     {
         if (writeBuf != NULL_BUFFER)
         {
             final long address = flushBytes(writeBuf, writableBytes);
-            regions.item(r -> r.address(address).length(writableBytes));
+            regions.item(r -> r.address(address).length(writableBytes).streamId(streamId));
         }
     }
 

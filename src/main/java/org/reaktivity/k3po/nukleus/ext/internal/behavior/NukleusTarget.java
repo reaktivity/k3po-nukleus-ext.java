@@ -409,7 +409,7 @@ final class NukleusTarget implements AutoCloseable
                     final TransferFW transfer = transferRW.wrap(writeBuffer, 0, writeBuffer.capacity())
                             .streamId(streamId)
                             .authorization(authorization)
-                            .regions(rs -> channel.flushBytes(rs, writeBuf, writableBytes))
+                            .regions(rs -> channel.flushBytes(rs, writeBuf, writableBytes, streamId))
                             .extension(p -> p.set(transferExtCopy))
                             .build();
 

@@ -241,10 +241,10 @@ final class NukleusPartition implements AutoCloseable
         final ListFW<RegionFW> regions)
     {
         final AckFW ack = ackRW.wrap(writeBuffer, 0, writeBuffer.capacity())
-                .streamId(streamId)
-                .flags(flags)
-                .regions(b -> regions.forEach(e -> b.item(m -> m.address(e.address()).length(e.length()))))
-                .build();
+            .streamId(streamId)
+            .flags(flags)
+            .regions(b -> regions.forEach(e -> b.item(m -> m.address(e.address()).length(e.length()).streamId(e.streamId()))))
+            .build();
 
         throttleBuffer.write(ack.typeId(), ack.buffer(), ack.offset(), ack.sizeof());
     }
