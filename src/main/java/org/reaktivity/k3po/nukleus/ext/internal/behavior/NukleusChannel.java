@@ -318,10 +318,9 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         int writableBytes)
     {
         final ByteBuffer byteBuffer = writeBuf.toByteBuffer();
-        final long writeAddress = writeAddressBase + writerIndex;
-
         final int writerAt = (int) (writerIndex & (writeBuffer.capacity() - 1));
         final int writerLimit = writerAt + writableBytes;
+        final long writeAddress = writeAddressBase + writerAt;
         if (writerLimit <= writeBuffer.capacity())
         {
             writeBuffer.putBytes(writerAt, byteBuffer, writableBytes);
@@ -334,7 +333,7 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
 
             writeBuffer.putBytes(writerAt, byteBuffer, writableBytes0);
             writerIndex = 0;
-            writeBuffer.putBytes(writerAt, byteBuffer, writableBytes1);
+            writeBuffer.putBytes(0, byteBuffer, writableBytes1);
             writerIndex = writableBytes1;
         }
 
