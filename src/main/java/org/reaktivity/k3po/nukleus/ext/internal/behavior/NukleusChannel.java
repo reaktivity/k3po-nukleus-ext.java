@@ -297,7 +297,7 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
 
     public int writableBytes()
     {
-        return readerIndex + writeBuffer.capacity() - writerIndex;
+        return readerIndex > writerIndex  ? readerIndex - writerIndex : readerIndex + writeBuffer.capacity() - writerIndex;
     }
 
     public void flushBytes(
