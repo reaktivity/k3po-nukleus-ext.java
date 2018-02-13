@@ -101,7 +101,12 @@ public class NukleusClientChannelSink extends AbstractChannelSink
         ChannelStateEvent evt) throws Exception
     {
         NukleusChannel channel = (NukleusChannel) evt.getChannel();
-        ChannelFuture handlerFuture = evt.getFuture();
-        channel.reaktor.close(channel, handlerFuture);
+        if (!channel.isWriteClosed())
+        {
+            channel.setClosing();
+            channel.setReadClosed();
+            ChannelFuture handlerFuture = evt.getFuture();
+            channel.reaktor.close(channel, handlerFuture);
+        }
     }
 }

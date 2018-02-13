@@ -202,7 +202,7 @@ public final class NukleusStreamFactory
                     fireChannelUnbound(channel);
                     fireChannelClosed(channel);
                 }
-                else
+                else if (!channel.isClosing())
                 {
                     fireInputShutdown(channel);
                 }

@@ -330,13 +330,6 @@ final class NukleusTarget implements AutoCloseable
 
         fireOutputShutdown(channel);
         handlerFuture.setSuccess();
-
-        if (channel.setWriteClosed())
-        {
-            fireChannelDisconnected(channel);
-            fireChannelUnbound(channel);
-            fireChannelClosed(channel);
-        }
     }
 
     public void doClose(
@@ -357,13 +350,6 @@ final class NukleusTarget implements AutoCloseable
         streamsBuffer.write(transfer.typeId(), transfer.buffer(), transfer.offset(), transfer.sizeof());
 
         handlerFuture.setSuccess();
-
-        if (channel.setClosed())
-        {
-            fireChannelDisconnected(channel);
-            fireChannelUnbound(channel);
-            fireChannelClosed(channel);
-        }
     }
 
     private boolean doFlushBegin(
@@ -528,6 +514,16 @@ final class NukleusTarget implements AutoCloseable
             {
                 channel.acknowledge(regions);
                 flushThrottledWrites(channel);
+
+                if (FIN.check(flags))
+                {
+                    if (channel.setWriteClosed())
+                    {
+                        fireChannelDisconnected(channel);
+                        fireChannelUnbound(channel);
+                        fireChannelClosed(channel);
+                    }
+                }
             }
         }
 

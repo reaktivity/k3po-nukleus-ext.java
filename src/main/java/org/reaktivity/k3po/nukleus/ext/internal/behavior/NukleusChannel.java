@@ -20,6 +20,7 @@ import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NullChannelBuffe
 import java.nio.ByteBuffer;
 import java.util.Deque;
 import java.util.LinkedList;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.agrona.MutableDirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
@@ -40,6 +41,8 @@ import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.RegionFW;
 public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfig>
 {
     static final ChannelBufferFactory NATIVE_BUFFER_FACTORY = NukleusByteOrder.NATIVE.toBufferFactory();
+
+    private final AtomicBoolean closing;
 
     private long sourceId;
     private long sourceAuth;
@@ -63,6 +66,7 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     private long readerIndex;
     private long writerIndex;
     private int ackCount;
+
 
     NukleusChannel(
         NukleusServerChannel parent,
@@ -90,6 +94,7 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         this.writeBuffer = buffer;
 
         getCloseFuture().addListener(f -> reaktor.release(address, capacity));
+        this.closing = new AtomicBoolean();
     }
 
     @Override
@@ -114,6 +119,16 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     protected void setConnected()
     {
         super.setConnected();
+    }
+
+    public boolean isClosing()
+    {
+        return closing.get();
+    }
+
+    public boolean setClosing()
+    {
+        return closing.compareAndSet(false, true);
     }
 
     @Override
