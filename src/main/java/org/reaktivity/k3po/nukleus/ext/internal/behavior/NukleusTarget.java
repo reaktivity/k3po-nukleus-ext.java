@@ -510,6 +510,12 @@ final class NukleusTarget implements AutoCloseable
                 else if (channel.setWriteAborted())
                 {
                     fireOutputAborted(channel);
+                    if (channel.setWriteClosed())
+                    {
+                        fireChannelDisconnected(channel);
+                        fireChannelUnbound(channel);
+                        fireChannelClosed(channel);
+                    }
                 }
             }
             else
