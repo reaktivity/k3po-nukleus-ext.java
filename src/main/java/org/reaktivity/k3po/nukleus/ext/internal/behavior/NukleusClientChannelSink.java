@@ -107,7 +107,7 @@ public class NukleusClientChannelSink extends AbstractChannelSink
         }
         else
         {
-            future.cancel();
+            future.setSuccess();
         }
     }
 
