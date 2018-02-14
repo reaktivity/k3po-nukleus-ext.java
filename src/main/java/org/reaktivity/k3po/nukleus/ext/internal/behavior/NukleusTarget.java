@@ -209,10 +209,12 @@ final class NukleusTarget implements AutoCloseable
             beginExt.skipBytes(writableExtBytes);
             beginExt.discardReadBytes();
 
+            clientChannel.acquireWriteMemory();
             clientChannel.beginOutputFuture().setSuccess();
         }
         catch (Exception ex)
         {
+            clientChannel.releaseWriteMemory();
             connectFuture.setFailure(ex);
         }
     }

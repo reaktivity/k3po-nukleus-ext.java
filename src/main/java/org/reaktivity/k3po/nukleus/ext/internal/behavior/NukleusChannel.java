@@ -51,8 +51,9 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
 
     final NukleusReaktor reaktor;
     final Deque<MessageEvent> writeRequests;
-    final long writeAddressBase;
-    final MutableDirectBuffer writeBuffer;
+
+    long writeAddressBase;
+    MutableDirectBuffer writeBuffer;
 
     private NukleusExtensionKind readExtKind;
     private ChannelBuffer readExtBuffer;
@@ -66,6 +67,8 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     private long readerIndex;
     private long writerIndex;
     private int ackCount;
+
+    private int writeCapacity;
 
 
     NukleusChannel(
@@ -81,20 +84,31 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         this.writeRequests = new LinkedList<>();
         this.targetId = ((long) getId()) | 0x8000000000000000L;
 
-        final int capacity = 64 * 1024; // TODO: configurable?
+        this.writeCapacity = 64 * 1024;
+
+        this.closing = new AtomicBoolean();
+    }
+
+    public void acquireWriteMemory()
+    {
         final UnsafeBuffer buffer = new UnsafeBuffer(new byte[0]);
-        final long address = reaktor.acquire(capacity);
+        final long address = reaktor.acquire(writeCapacity);
         if (address == -1L)
         {
-            throw new IllegalStateException("Unable to allocate memory block: " + capacity);
+            throw new IllegalStateException("Unable to allocate memory block: " + writeCapacity);
         }
         final long resolvedAddress = reaktor.resolve(address);
-        buffer.wrap(resolvedAddress, capacity);
+        buffer.wrap(resolvedAddress, writeCapacity);
         this.writeAddressBase = address;
         this.writeBuffer = buffer;
+    }
 
-        getCloseFuture().addListener(f -> reaktor.release(address, capacity));
-        this.closing = new AtomicBoolean();
+    public void releaseWriteMemory()
+    {
+        if (writeBuffer != null)
+        {
+            reaktor.release(writeAddressBase, writeCapacity);
+        }
     }
 
     @Override
@@ -152,6 +166,7 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     @Override
     protected boolean setWriteClosed()
     {
+        releaseWriteMemory();
         return super.setWriteClosed();
     }
 
@@ -164,12 +179,14 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     @Override
     protected boolean setWriteAborted()
     {
+        releaseWriteMemory();
         return super.setWriteAborted();
     }
 
     @Override
     protected boolean setClosed()
     {
+        releaseWriteMemory();
         return super.setClosed();
     }
 

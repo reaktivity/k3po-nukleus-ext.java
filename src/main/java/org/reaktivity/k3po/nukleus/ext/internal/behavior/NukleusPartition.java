@@ -280,6 +280,10 @@ final class NukleusPartition implements AutoCloseable
             {
                 childChannel.setWriteClosed();
             }
+            else
+            {
+                childChannel.acquireWriteMemory();
+            }
 
             String partitionName = childConfig.getWritePartition();
             if (partitionName == null)
