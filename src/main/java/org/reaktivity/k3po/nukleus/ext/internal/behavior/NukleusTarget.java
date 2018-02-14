@@ -302,6 +302,7 @@ final class NukleusTarget implements AutoCloseable
 
         streamsBuffer.write(transfer.typeId(), transfer.buffer(), transfer.offset(), transfer.sizeof());
 
+        channel.setWriteClosed();
         abortFuture.setSuccess();
     }
 

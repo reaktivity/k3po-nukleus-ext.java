@@ -72,7 +72,16 @@ public class NukleusClientChannelSink extends AbstractChannelSink
         MessageEvent evt) throws Exception
     {
         NukleusChannel channel = (NukleusChannel) evt.getChannel();
-        channel.reaktor.write(evt);
+        ChannelFuture future = evt.getFuture();
+
+        if (!channel.isWriteClosed())
+        {
+            channel.reaktor.write(evt);
+        }
+        else
+        {
+            future.setSuccess();
+        }
     }
 
     @Override
@@ -92,7 +101,14 @@ public class NukleusClientChannelSink extends AbstractChannelSink
     {
         NukleusChannel channel = (NukleusChannel) evt.getChannel();
         ChannelFuture future = evt.getFuture();
-        channel.reaktor.shutdownOutput(channel, future);
+        if (!channel.isWriteClosed())
+        {
+            channel.reaktor.shutdownOutput(channel, future);
+        }
+        else
+        {
+            future.cancel();
+        }
     }
 
     @Override
