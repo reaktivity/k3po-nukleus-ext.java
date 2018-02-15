@@ -53,7 +53,7 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     final Deque<MessageEvent> writeRequests;
 
     long writeAddressBase;
-    MutableDirectBuffer writeBuffer;
+    final MutableDirectBuffer writeBuffer;
 
     private NukleusExtensionKind readExtKind;
     private ChannelBuffer readExtBuffer;
@@ -70,7 +70,6 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
 
     private int writeCapacity;
 
-
     NukleusChannel(
         NukleusServerChannel parent,
         ChannelFactory factory,
@@ -84,30 +83,33 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         this.writeRequests = new LinkedList<>();
         this.targetId = ((long) getId()) | 0x8000000000000000L;
 
-        this.writeCapacity = 64 * 1024;
+        this.writeCapacity = 8 * 1024;
+        this.writeAddressBase = -1L;
+        this.writeBuffer = new UnsafeBuffer(new byte[0]);
 
         this.closing = new AtomicBoolean();
     }
 
     public void acquireWriteMemory()
     {
-        final UnsafeBuffer buffer = new UnsafeBuffer(new byte[0]);
-        final long address = reaktor.acquire(writeCapacity);
-        if (address == -1L)
+        if (writeAddressBase == -1L)
         {
-            throw new IllegalStateException("Unable to allocate memory block: " + writeCapacity);
+            final long address = reaktor.acquire(writeCapacity);
+            if (address == -1L)
+            {
+                throw new IllegalStateException("Unable to allocate memory block: " + writeCapacity);
+            }
+            this.writeAddressBase = address;
+            this.writeBuffer.wrap(reaktor.resolve(address), writeCapacity);
         }
-        final long resolvedAddress = reaktor.resolve(address);
-        buffer.wrap(resolvedAddress, writeCapacity);
-        this.writeAddressBase = address;
-        this.writeBuffer = buffer;
     }
 
     public void releaseWriteMemory()
     {
-        if (writeBuffer != null)
+        if (writeAddressBase != -1L)
         {
             reaktor.release(writeAddressBase, writeCapacity);
+            writeAddressBase = -1L;
         }
     }
 
