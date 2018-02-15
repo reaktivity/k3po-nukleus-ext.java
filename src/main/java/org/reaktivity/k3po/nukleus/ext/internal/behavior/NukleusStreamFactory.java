@@ -170,7 +170,7 @@ public final class NukleusStreamFactory
                 }
             }
 
-            int ackFlags = RST.clear(flags);
+            int ackFlags = flags;
 
             if (RST.check(flags))
             {
@@ -183,8 +183,19 @@ public final class NukleusStreamFactory
 
                 if (channel.setReadAborted())
                 {
-                    fireInputAborted(channel);
+                    if (channel.setReadClosed())
+                    {
+                        fireInputAborted(channel);
+                        fireChannelDisconnected(channel);
+                        fireChannelUnbound(channel);
+                        fireChannelClosed(channel);
+                    }
+                    else
+                    {
+                        fireInputAborted(channel);
+                    }
                 }
+
             }
             else if (FIN.check(flags))
             {

@@ -70,6 +70,7 @@ public class DefaultMemoryManager implements MemoryManager
     public long acquire(
         int capacity)
     {
+        System.out.println("acquire");
         lock();
         try
         {
@@ -86,6 +87,7 @@ public class DefaultMemoryManager implements MemoryManager
         long address,
         int capacity)
     {
+        System.out.println("release");
         lock();
         try
         {
