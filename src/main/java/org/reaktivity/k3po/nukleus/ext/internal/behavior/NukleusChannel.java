@@ -64,11 +64,15 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     private ChannelFuture beginOutputFuture;
     private ChannelFuture beginInputFuture;
 
-    private long readerIndex;
-    private long writerIndex;
+    private long ackIndex;
+    private long writeIndex;
     private int ackCount;
 
+    private long ackIndexHighMark;
+    private int ackIndexProgress;
+
     private int writeCapacity;
+    private final long writeCapacityMask;
 
     NukleusChannel(
         NukleusServerChannel parent,
@@ -83,7 +87,8 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         this.writeRequests = new LinkedList<>();
         this.targetId = ((long) getId()) | 0x8000000000000000L;
 
-        this.writeCapacity = 8 * 1024;
+        this.writeCapacity = 8 * 1024; // TODO: configurable
+        this.writeCapacityMask = writeCapacity - 1;
         this.writeAddressBase = -1L;
         this.writeBuffer = new UnsafeBuffer(new byte[0]);
 
@@ -331,7 +336,7 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
 
     public int writableBytes()
     {
-        return writeBuffer.capacity() - (int)(writerIndex - readerIndex);
+        return writeBuffer.capacity() - (int)(writeIndex - ackIndex);
     }
 
     public void flushBytes(
@@ -352,23 +357,23 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         int writableBytes)
     {
         final ByteBuffer byteBuffer = writeBuf.toByteBuffer();
-        final int writerAt = (int) (writerIndex & (writeBuffer.capacity() - 1));
-        final int writerLimit = writerAt + writableBytes;
-        final long writeAddress = writeAddressBase + writerAt;
-        if (writerLimit <= writeBuffer.capacity())
+        final int writeAt = (int) (writeIndex & (writeBuffer.capacity() - 1));
+        final int writeLimit = writeAt + writableBytes;
+        final long writeAddress = writeAddressBase + writeAt;
+        if (writeLimit <= writeBuffer.capacity())
         {
-            writeBuffer.putBytes(writerAt, byteBuffer, writableBytes);
-            writerIndex += writableBytes;
+            writeBuffer.putBytes(writeAt, byteBuffer, writableBytes);
+            writeIndex += writableBytes;
         }
         else
         {
-            int writableBytes0 = writeBuffer.capacity() - writerAt;
-            int writableBytes1 = writerLimit - writeBuffer.capacity();
+            int writableBytes0 = writeBuffer.capacity() - writeAt;
+            int writableBytes1 = writeLimit - writeBuffer.capacity();
 
-            writeBuffer.putBytes(writerAt, byteBuffer, writableBytes0);
-            writerIndex = 0;
+            writeBuffer.putBytes(writeAt, byteBuffer, writableBytes0);
+            writeIndex = 0;
             writeBuffer.putBytes(0, byteBuffer, writableBytes1);
-            writerIndex = writableBytes1;
+            writeIndex = writableBytes1;
         }
 
         writeBuf.skipBytes(writableBytes);
@@ -379,12 +384,25 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     private void acknowledge(
         RegionFW region)
     {
-        // TODO: verify address is contiguous
-        readerIndex += region.length();
+        final long address = region.address();
+        final int length = region.length();
 
-        if (readerIndex == writerIndex)
+        final long addressIndex = (ackIndex & ~writeCapacityMask) | (address & writeCapacityMask);
+
+        ackIndexHighMark = Math.max(ackIndexHighMark, addressIndex + length);
+        ackIndexProgress += length;
+
+        final long ackIndexCandidate = ackIndex + ackIndexProgress;
+        if (ackIndexCandidate == ackIndexHighMark)
         {
-            readerIndex = writerIndex = 0L;
+            ackIndex = ackIndexCandidate;
+            ackIndexHighMark = ackIndexCandidate;
+            ackIndexProgress = 0;
+        }
+
+        if (ackIndex == writeIndex)
+        {
+            ackIndex = writeIndex = 0L;
         }
     }
 }
