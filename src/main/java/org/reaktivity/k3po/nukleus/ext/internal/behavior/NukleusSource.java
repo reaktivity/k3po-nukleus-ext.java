@@ -15,11 +15,15 @@
  */
 package org.reaktivity.k3po.nukleus.ext.internal.behavior;
 
+import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusFlags.RST;
+
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.BiFunction;
 import java.util.function.LongFunction;
+import java.util.function.LongUnaryOperator;
 
 import org.agrona.CloseHelper;
 import org.agrona.MutableDirectBuffer;
@@ -53,6 +57,7 @@ public final class NukleusSource implements AutoCloseable
     public NukleusSource(
         Configuration config,
         Path streamsDirectory,
+        LongUnaryOperator resolveMemory,
         String sourceName,
         MutableDirectBuffer writeBuffer,
         LongFunction<NukleusCorrelation> correlateEstablished,
@@ -65,7 +70,7 @@ public final class NukleusSource implements AutoCloseable
         this.streamsById = new Long2ObjectHashMap<>();
         this.partitionsByName = new LinkedHashMap<>();
         this.partitions = new NukleusPartition[0];
-        this.streamFactory = new NukleusStreamFactory(streamsById::remove);
+        this.streamFactory = new NukleusStreamFactory(resolveMemory, streamsById::remove);
         this.correlateEstablished = correlateEstablished;
         this.supplyTarget = supplyTarget;
     }
@@ -136,7 +141,7 @@ public final class NukleusSource implements AutoCloseable
 
         if (partition != null)
         {
-            partition.doReset(channel.sourceId());
+            partition.doAck(channel.sourceId(), RST.flag());
             abortFuture.setSuccess();
         }
         else
@@ -206,12 +211,37 @@ public final class NukleusSource implements AutoCloseable
                 .build();
 
         NukleusPartition partition = new NukleusPartition(partitionPath, layout,
-                (r, a) -> routesByRefAndAuth.computeIfAbsent(r, key -> new Long2ObjectHashMap<NukleusServerChannel>()).get(a),
+                this::lookupServerChannel,
                 streamsById::get, streamsById::put,
                 writeBuffer, streamFactory, correlateEstablished, supplyTarget);
 
         this.partitions = ArrayUtil.add(this.partitions, partition);
 
         return partition;
+    }
+
+    private NukleusServerChannel lookupServerChannel(
+        long routeRef,
+        long authorization)
+    {
+        final Long2ObjectHashMap<NukleusServerChannel> routeAuthorizations =
+                routesByRefAndAuth.computeIfAbsent(routeRef, key -> new Long2ObjectHashMap<>());
+
+        NukleusServerChannel serverChannel = routeAuthorizations.get(authorization);
+
+        if (serverChannel == null)
+        {
+            for (Entry<Long, NukleusServerChannel> entry : routeAuthorizations.entrySet())
+            {
+                final long routeAuthorization = entry.getKey();
+                if ((routeAuthorization & authorization) == routeAuthorization)
+                {
+                    serverChannel = entry.getValue();
+                    break;
+                }
+            }
+        }
+
+        return serverChannel;
     }
 }

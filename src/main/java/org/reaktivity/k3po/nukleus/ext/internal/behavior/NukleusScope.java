@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.nio.file.WatchService;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -43,6 +44,7 @@ public final class NukleusScope implements AutoCloseable
 
     private final Configuration config;
     private final Path streamsDirectory;
+    private final LongUnaryOperator resolveMemory;
     private final NukleusWatcher watcher;
     private final MutableDirectBuffer writeBuffer;
     private final Long2ObjectHashMap<MessageHandler> throttlesById;
@@ -51,13 +53,16 @@ public final class NukleusScope implements AutoCloseable
     private NukleusSource[] sources = new NukleusSource[0];
     private NukleusTarget[] targets = new NukleusTarget[0];
 
+
     public NukleusScope(
         Configuration config,
         Path directory,
+        LongUnaryOperator resolveMemory,
         Supplier<WatchService> watchService)
     {
         this.config = config;
         this.streamsDirectory = directory.resolve("streams");
+        this.resolveMemory = resolveMemory;
 
         NukleusWatcher watcher = new NukleusWatcher(watchService, streamsDirectory);
         watcher.setRouter(this);
@@ -213,7 +218,7 @@ public final class NukleusScope implements AutoCloseable
     private NukleusSource newSource(
         String sourceName)
     {
-        NukleusSource source = new NukleusSource(config, streamsDirectory, sourceName, writeBuffer,
+        NukleusSource source = new NukleusSource(config, streamsDirectory, resolveMemory, sourceName, writeBuffer,
                 correlations::remove, this::supplyTarget);
 
         this.sources = ArrayUtil.add(this.sources, source);

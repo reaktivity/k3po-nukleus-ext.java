@@ -16,11 +16,8 @@
 package org.reaktivity.k3po.nukleus.ext.internal.behavior;
 
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusChannel.NATIVE_BUFFER_FACTORY;
-import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusThrottleMode.NONE;
-import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusThrottleMode.STREAM;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusTransmission.SIMPLEX;
 import static org.reaktivity.k3po.nukleus.ext.internal.types.NukleusTypeSystem.OPTION_BYTE_ORDER;
-import static org.reaktivity.k3po.nukleus.ext.internal.util.Conversions.convertToInt;
 import static org.reaktivity.k3po.nukleus.ext.internal.util.Conversions.convertToLong;
 
 import java.util.Objects;
@@ -33,10 +30,6 @@ public class DefaultNukleusServerChannelConfig extends DefaultServerChannelConfi
     private String readPartition;
     private String writePartition;
     private NukleusTransmission transmission = SIMPLEX;
-    private int window;
-    private int padding;
-    private NukleusThrottleMode throttle = STREAM;
-    private boolean update = true;
 
     public DefaultNukleusServerChannelConfig()
     {
@@ -97,61 +90,6 @@ public class DefaultNukleusServerChannelConfig extends DefaultServerChannelConfi
     }
 
     @Override
-    public void setWindow(int window)
-    {
-        this.window = window;
-    }
-
-    @Override
-    public int getWindow()
-    {
-        return window;
-    }
-
-    @Override
-    public void setPadding(int padding)
-    {
-        this.padding = padding;
-    }
-
-    @Override
-    public int getPadding()
-    {
-        return padding;
-    }
-
-    @Override
-    public void setUpdate(boolean update)
-    {
-        this.update = update;
-    }
-
-    @Override
-    public boolean getUpdate()
-    {
-        return update;
-    }
-
-    @Override
-    public void setThrottle(
-        NukleusThrottleMode throttle)
-    {
-        this.throttle = throttle;
-    }
-
-    @Override
-    public boolean hasThrottle()
-    {
-        return throttle != NONE;
-    }
-
-    @Override
-    public NukleusThrottleMode getThrottle()
-    {
-        return throttle;
-    }
-
-    @Override
     protected boolean setOption0(
         String key,
         Object value)
@@ -177,22 +115,6 @@ public class DefaultNukleusServerChannelConfig extends DefaultServerChannelConfi
         {
             setTransmission(NukleusTransmission.decode(Objects.toString(value, "simplex")));
         }
-        else if ("window".equals(key))
-        {
-            setWindow(convertToInt(value));
-        }
-        else if ("padding".equals(key))
-        {
-            setPadding(convertToInt(value));
-        }
-        else if ("update".equals(key))
-        {
-            setUpdate(!"none".equals(value));
-        }
-        else if ("throttle".equals(key))
-        {
-            setThrottle(NukleusThrottleMode.decode(Objects.toString(value, "stream")));
-        }
         else if (OPTION_BYTE_ORDER.getName().equals(key))
         {
             setBufferFactory(NukleusByteOrder.decode(Objects.toString(value, "native")).toBufferFactory());
@@ -204,5 +126,4 @@ public class DefaultNukleusServerChannelConfig extends DefaultServerChannelConfi
 
         return true;
     }
-
 }

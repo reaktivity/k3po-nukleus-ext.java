@@ -18,7 +18,5 @@ package org.reaktivity.k3po.nukleus.ext.internal.behavior;
 public enum NukleusExtensionKind
 {
     BEGIN,
-    DATA,
-    ABORT,
-    END;
+    TRANSFER;
 }

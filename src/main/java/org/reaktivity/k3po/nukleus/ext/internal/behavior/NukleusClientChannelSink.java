@@ -15,6 +15,10 @@
  */
 package org.reaktivity.k3po.nukleus.ext.internal.behavior;
 
+import static org.jboss.netty.channel.Channels.fireChannelClosed;
+import static org.jboss.netty.channel.Channels.fireChannelDisconnected;
+import static org.jboss.netty.channel.Channels.fireChannelUnbound;
+
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelStateEvent;
@@ -72,7 +76,16 @@ public class NukleusClientChannelSink extends AbstractChannelSink
         MessageEvent evt) throws Exception
     {
         NukleusChannel channel = (NukleusChannel) evt.getChannel();
-        channel.reaktor.write(evt);
+        ChannelFuture future = evt.getFuture();
+
+        if (!channel.isWriteClosed())
+        {
+            channel.reaktor.write(evt);
+        }
+        else
+        {
+            future.setSuccess();
+        }
     }
 
     @Override
@@ -92,7 +105,14 @@ public class NukleusClientChannelSink extends AbstractChannelSink
     {
         NukleusChannel channel = (NukleusChannel) evt.getChannel();
         ChannelFuture future = evt.getFuture();
-        channel.reaktor.shutdownOutput(channel, future);
+        if (!channel.isWriteClosed())
+        {
+            channel.reaktor.shutdownOutput(channel, future);
+        }
+        else
+        {
+            future.setSuccess();
+        }
     }
 
     @Override
@@ -101,7 +121,18 @@ public class NukleusClientChannelSink extends AbstractChannelSink
         ChannelStateEvent evt) throws Exception
     {
         NukleusChannel channel = (NukleusChannel) evt.getChannel();
-        ChannelFuture handlerFuture = evt.getFuture();
-        channel.reaktor.close(channel, handlerFuture);
+        if (!channel.isWriteClosed())
+        {
+            channel.setClosing();
+            channel.setReadClosed();
+            ChannelFuture handlerFuture = evt.getFuture();
+            channel.reaktor.close(channel, handlerFuture);
+        }
+        else if (channel.setReadClosed())
+        {
+            fireChannelDisconnected(channel);
+            fireChannelUnbound(channel);
+            fireChannelClosed(channel);
+        }
     }
 }

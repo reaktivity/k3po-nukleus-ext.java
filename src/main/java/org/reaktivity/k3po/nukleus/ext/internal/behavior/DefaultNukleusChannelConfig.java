@@ -16,11 +16,8 @@
 package org.reaktivity.k3po.nukleus.ext.internal.behavior;
 
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusChannel.NATIVE_BUFFER_FACTORY;
-import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusThrottleMode.NONE;
-import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusThrottleMode.STREAM;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusTransmission.SIMPLEX;
 import static org.reaktivity.k3po.nukleus.ext.internal.types.NukleusTypeSystem.OPTION_BYTE_ORDER;
-import static org.reaktivity.k3po.nukleus.ext.internal.util.Conversions.convertToInt;
 import static org.reaktivity.k3po.nukleus.ext.internal.util.Conversions.convertToLong;
 
 import java.util.Objects;
@@ -33,10 +30,6 @@ public class DefaultNukleusChannelConfig extends DefaultChannelConfig implements
     private String readPartition;
     private String writePartition;
     private NukleusTransmission transmission = SIMPLEX;
-    private int window;
-    private int padding;
-    private NukleusThrottleMode throttle = STREAM;
-    private boolean update = true;
 
     public DefaultNukleusChannelConfig()
     {
@@ -97,61 +90,6 @@ public class DefaultNukleusChannelConfig extends DefaultChannelConfig implements
     }
 
     @Override
-    public void setWindow(int window)
-    {
-        this.window = window;
-    }
-
-    @Override
-    public int getWindow()
-    {
-        return window;
-    }
-
-    @Override
-    public void setPadding(int padding)
-    {
-        this.padding = padding;
-    }
-
-    @Override
-    public int getPadding()
-    {
-        return padding;
-    }
-
-    @Override
-    public void setUpdate(boolean update)
-    {
-        this.update = update;
-    }
-
-    @Override
-    public boolean getUpdate()
-    {
-        return update;
-    }
-
-    @Override
-    public void setThrottle(
-        NukleusThrottleMode throttle)
-    {
-        this.throttle = throttle;
-    }
-
-    @Override
-    public NukleusThrottleMode getThrottle()
-    {
-        return throttle;
-    }
-
-    @Override
-    public boolean hasThrottle()
-    {
-        return throttle != NONE;
-    }
-
-    @Override
     protected boolean setOption0(
         String key,
         Object value)
@@ -175,22 +113,6 @@ public class DefaultNukleusChannelConfig extends DefaultChannelConfig implements
         else if ("transmission".equals(key))
         {
             setTransmission(NukleusTransmission.decode(Objects.toString(value, null)));
-        }
-        else if ("window".equals(key))
-        {
-            setWindow(convertToInt(value));
-        }
-        else if ("padding".equals(key))
-        {
-            setPadding(convertToInt(value));
-        }
-        else if ("update".equals(key))
-        {
-            setUpdate(!"none".equals(value));
-        }
-        else if ("throttle".equals(key))
-        {
-            setThrottle(NukleusThrottleMode.decode(Objects.toString(value, null)));
         }
         else if (OPTION_BYTE_ORDER.getName().equals(key))
         {

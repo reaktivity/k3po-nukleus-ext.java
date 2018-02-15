@@ -20,12 +20,10 @@ property newCorrelationId ${nukleus:newCorrelationId()}
 connect "nukleus://server/streams/client"
         option nukleus:route ${newRouteRef}
         option nukleus:correlation ${newCorrelationId}
-        option nukleus:window 8192
 connected
 
 accept "nukleus://client/streams/server"
         option nukleus:route 0L
-        option nukleus:window 8192
 
 accepted
 # TODO: option nukleus:correlation ${newCorrelationId}

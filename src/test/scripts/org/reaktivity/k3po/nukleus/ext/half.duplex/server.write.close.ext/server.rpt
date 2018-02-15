@@ -17,10 +17,9 @@
 accept "nukleus://server/streams/client"
        option nukleus:route 1234L
        option nukleus:transmission "half-duplex"
-       option nukleus:window 8192
 
 accepted
 connected
 
-write nukleus:end.ext [0x12 0x34] [0x0c] "Hello, world"
+write nukleus:transfer.ext [0x12 0x34] [0x0c] "Hello, world"
 write close

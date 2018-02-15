@@ -54,6 +54,7 @@ public final class NukleusReaktor implements Runnable, ExternalResourceReleasabl
     private final Configuration config;
     private final Deque<Runnable> taskQueue;
     private final Map<Path, NukleusScope> scopesByPath;
+    private final NukleusMemory memory;
 
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
     private final AtomicBoolean shutdown = new AtomicBoolean();
@@ -66,7 +67,27 @@ public final class NukleusReaktor implements Runnable, ExternalResourceReleasabl
         this.config = config;
         this.scopesByPath = new LinkedHashMap<>();
         this.taskQueue = new ConcurrentLinkedDeque<>();
+        this.memory = new NukleusMemory(config.directory());
         this.scopes = new NukleusScope[0];
+    }
+
+    public long acquire(
+        int capacity)
+    {
+        return memory.acquire(capacity);
+    }
+
+    public long resolve(
+        long address)
+    {
+        return memory.resolve(address);
+    }
+
+    public void release(
+        long address,
+        int capacity)
+    {
+        memory.release(address, capacity);
     }
 
     public void bind(
@@ -142,23 +163,28 @@ public final class NukleusReaktor implements Runnable, ExternalResourceReleasabl
     @Override
     public void run()
     {
-        final IdleStrategy idleStrategy = new BackoffIdleStrategy(MAX_SPINS, MAX_YIELDS, MIN_PARK_NS, MAX_PARK_NS);
-
-        while (!shutdown.get())
+        try
         {
-            int workCount = 0;
+            final IdleStrategy idleStrategy = new BackoffIdleStrategy(MAX_SPINS, MAX_YIELDS, MIN_PARK_NS, MAX_PARK_NS);
 
-            workCount += executeTasks();
-            workCount += readMessages();
+            while (!shutdown.get())
+            {
+                int workCount = 0;
 
-            idleStrategy.idle(workCount);
+                workCount += executeTasks();
+                workCount += readMessages();
+
+                idleStrategy.idle(workCount);
+            }
+
+            // ensure task queue is drained
+            // so that all channels are closed
+            executeTasks();
         }
-
-        // ensure task queue is drained
-        // so that all channels are closed
-        executeTasks();
-
-        shutdownLatch.countDown();
+        finally
+        {
+            shutdownLatch.countDown();
+        }
     }
 
     public void shutdown()
@@ -173,6 +199,8 @@ public final class NukleusReaktor implements Runnable, ExternalResourceReleasabl
                 {
                     CloseHelper.quietClose(scopes[i]);
                 }
+
+                CloseHelper.quietClose(memory);
             }
             catch (InterruptedException ex)
             {
@@ -216,7 +244,7 @@ public final class NukleusReaktor implements Runnable, ExternalResourceReleasabl
     private NukleusScope newScope(
         Path scopePath)
     {
-        NukleusScope scope = new NukleusScope(config, scopePath, NukleusReaktor::watchService);
+        NukleusScope scope = new NukleusScope(config, scopePath, memory::resolve, NukleusReaktor::watchService);
         this.scopes = ArrayUtil.add(this.scopes, scope);
         return scope;
     }

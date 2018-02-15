@@ -15,6 +15,10 @@
  */
 package org.reaktivity.k3po.nukleus.ext.internal.behavior;
 
+import static org.jboss.netty.channel.Channels.fireChannelClosed;
+import static org.jboss.netty.channel.Channels.fireChannelDisconnected;
+import static org.jboss.netty.channel.Channels.fireChannelUnbound;
+
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelStateEvent;
@@ -101,8 +105,16 @@ public class NukleusChildChannelSink extends AbstractChannelSink
         NukleusChannel channel = (NukleusChannel) evt.getChannel();
         if (!channel.isWriteClosed())
         {
+            channel.setClosing();
+            channel.setReadClosed();
             ChannelFuture handlerFuture = evt.getFuture();
             channel.reaktor.close(channel, handlerFuture);
+        }
+        else if (channel.setReadClosed())
+        {
+            fireChannelDisconnected(channel);
+            fireChannelUnbound(channel);
+            fireChannelClosed(channel);
         }
     }
 

@@ -30,26 +30,20 @@ public final class NukleusTypeSystem implements TypeSystemSpi
 {
     public static final TypeInfo<Long> OPTION_ROUTE = new TypeInfo<>("route", Long.class);
     public static final TypeInfo<String> OPTION_REPLY_TO = new TypeInfo<>("replyTo", String.class);
-    public static final TypeInfo<Integer> OPTION_WINDOW = new TypeInfo<>("window", Integer.class);
-    public static final TypeInfo<Integer> OPTION_PADDING = new TypeInfo<>("padding", Integer.class);
-    public static final TypeInfo<String> OPTION_UPDATE = new TypeInfo<>("update", String.class);
     public static final TypeInfo<String> OPTION_PARTITION = new TypeInfo<>("partition", String.class);
     public static final TypeInfo<Long> OPTION_CORRELATION = new TypeInfo<>("correlation", Long.class);
     public static final TypeInfo<String> OPTION_TRANSMISSION = new TypeInfo<>("transmission", String.class);
-    public static final TypeInfo<String> OPTION_THROTTLE = new TypeInfo<>("throttle", String.class);
     public static final TypeInfo<Long> OPTION_AUTHORIZATION = new TypeInfo<>("authorization", Long.class);
     public static final TypeInfo<String> OPTION_BYTE_ORDER = new TypeInfo<>("byteorder", String.class);
 
     public static final StructuredTypeInfo CONFIG_BEGIN_EXT =
             new StructuredTypeInfo("nukleus", "begin.ext", emptyList(), MAX_VALUE);
-    public static final StructuredTypeInfo CONFIG_DATA_EXT =
-            new StructuredTypeInfo("nukleus", "data.ext", emptyList(), MAX_VALUE);
-    public static final StructuredTypeInfo CONFIG_DATA_EMPTY =
-            new StructuredTypeInfo("nukleus", "data.empty", emptyList(), 0);
-    public static final StructuredTypeInfo CONFIG_DATA_NULL =
-            new StructuredTypeInfo("nukleus", "data.null", emptyList(), 0);
-    public static final StructuredTypeInfo CONFIG_END_EXT =
-            new StructuredTypeInfo("nukleus", "end.ext", emptyList(), MAX_VALUE);
+    public static final StructuredTypeInfo CONFIG_TRANSFER_EXT =
+            new StructuredTypeInfo("nukleus", "transfer.ext", emptyList(), MAX_VALUE);
+    public static final StructuredTypeInfo CONFIG_TRANSFER_EMPTY =
+            new StructuredTypeInfo("nukleus", "transfer.empty", emptyList(), 0);
+    public static final StructuredTypeInfo CONFIG_TRANSFER_NULL =
+            new StructuredTypeInfo("nukleus", "transfer.null", emptyList(), 0);
 
     private final Set<TypeInfo<?>> acceptOptions;
     private final Set<TypeInfo<?>> connectOptions;
@@ -63,13 +57,9 @@ public final class NukleusTypeSystem implements TypeSystemSpi
         Set<TypeInfo<?>> acceptOptions = new LinkedHashSet<>();
         acceptOptions.add(OPTION_ROUTE);
         acceptOptions.add(OPTION_REPLY_TO);
-        acceptOptions.add(OPTION_WINDOW);
-        acceptOptions.add(OPTION_PADDING);
-        acceptOptions.add(OPTION_UPDATE);
         acceptOptions.add(OPTION_PARTITION);
         acceptOptions.add(OPTION_AUTHORIZATION);
         acceptOptions.add(OPTION_CORRELATION);
-        acceptOptions.add(OPTION_THROTTLE);
         acceptOptions.add(OPTION_TRANSMISSION);
         acceptOptions.add(OPTION_BYTE_ORDER);
         this.acceptOptions = unmodifiableSet(acceptOptions);
@@ -77,13 +67,9 @@ public final class NukleusTypeSystem implements TypeSystemSpi
         Set<TypeInfo<?>> connectOptions = new LinkedHashSet<>();
         connectOptions.add(OPTION_ROUTE);
         connectOptions.add(OPTION_REPLY_TO);
-        connectOptions.add(OPTION_WINDOW);
-        connectOptions.add(OPTION_PADDING);
-        connectOptions.add(OPTION_UPDATE);
         connectOptions.add(OPTION_PARTITION);
         connectOptions.add(OPTION_AUTHORIZATION);
         connectOptions.add(OPTION_CORRELATION);
-        connectOptions.add(OPTION_THROTTLE);
         connectOptions.add(OPTION_TRANSMISSION);
         connectOptions.add(OPTION_BYTE_ORDER);
         this.connectOptions = unmodifiableSet(connectOptions);
@@ -98,16 +84,14 @@ public final class NukleusTypeSystem implements TypeSystemSpi
 
         Set<StructuredTypeInfo> readConfigs = new LinkedHashSet<>();
         readConfigs.add(CONFIG_BEGIN_EXT);
-        readConfigs.add(CONFIG_DATA_EXT);
-        readConfigs.add(CONFIG_DATA_NULL);
-        readConfigs.add(CONFIG_END_EXT);
+        readConfigs.add(CONFIG_TRANSFER_EXT);
+        readConfigs.add(CONFIG_TRANSFER_NULL);
         this.readConfigs = readConfigs;
 
         Set<StructuredTypeInfo> writeConfigs = new LinkedHashSet<>();
         writeConfigs.add(CONFIG_BEGIN_EXT);
-        writeConfigs.add(CONFIG_DATA_EXT);
-        writeConfigs.add(CONFIG_DATA_EMPTY);
-        writeConfigs.add(CONFIG_END_EXT);
+        writeConfigs.add(CONFIG_TRANSFER_EXT);
+        writeConfigs.add(CONFIG_TRANSFER_EMPTY);
         this.writeConfigs = writeConfigs;
     }
 
