@@ -87,7 +87,7 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         this.writeRequests = new LinkedList<>();
         this.targetId = ((long) getId()) | 0x8000000000000000L;
 
-        this.writeCapacity = 8 * 1024; // TODO: configurable
+        this.writeCapacity = 32 * 1024; // TODO: configurable
         this.writeIndex = 0L; // TODO: configurable
         this.ackIndex = 0L; // TODO: configurable
         this.writeCapacityMask = writeCapacity - 1;

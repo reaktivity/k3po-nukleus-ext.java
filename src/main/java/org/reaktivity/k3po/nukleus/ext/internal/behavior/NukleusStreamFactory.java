@@ -144,7 +144,7 @@ public final class NukleusStreamFactory
             final long streamId = transfer.streamId();
             final ListFW<RegionFW> regions = transfer.regions();
             final OctetsFW transferExt = transfer.extension();
-            final int flags = transfer.flags();
+            int flags = transfer.flags();
 
             final ByteOrder byteOrder = channel.getConfig().getBufferFactory().getDefaultOrder();
             final ChannelBuffer message = toChannelBuffer(byteOrder, flags, regions, transferExt);
@@ -170,13 +170,11 @@ public final class NukleusStreamFactory
                 }
             }
 
-            int ackFlags = flags;
-
             if (RST.check(flags))
             {
                 if (transfer.authorization() != channel.sourceAuth())
                 {
-                    ackFlags = RST.set(ackFlags);
+                    flags = RST.set(flags);
                 }
 
                 unregisterStream.accept(streamId);
@@ -196,12 +194,18 @@ public final class NukleusStreamFactory
                     }
                 }
 
+                if (channel.setReadClosed())
+                {
+                    fireChannelDisconnected(channel);
+                    fireChannelUnbound(channel);
+                    fireChannelClosed(channel);
+                }
             }
             else if (FIN.check(flags))
             {
                 if (transfer.authorization() != channel.sourceAuth())
                 {
-                    ackFlags = RST.set(ackFlags);
+                    flags = RST.set(flags);
                 }
 
                 unregisterStream.accept(streamId);
@@ -219,7 +223,7 @@ public final class NukleusStreamFactory
                 }
             }
 
-            partition.doAck(streamId, ackFlags, regions);
+            partition.doAck(streamId, flags, regions);
         }
 
         private ChannelBuffer toChannelBuffer(
