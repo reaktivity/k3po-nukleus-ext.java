@@ -353,7 +353,7 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
             final int writeOffset = (int) (writeIndex & writeCapacityMask);
             final int writeLimit = writeOffset + writableBytes;
 
-            if ((writeLimit & writeCapacityMask) == writeLimit)
+            if (writeLimit <= writeCapacity)
             {
                 writeBuffer.putBytes(writeOffset, byteBuffer, writableBytes);
 
