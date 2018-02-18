@@ -29,6 +29,7 @@ import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusFlags.FIN
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NukleusFlags.RST;
 import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NullChannelBuffer.NULL_BUFFER;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.function.LongConsumer;
@@ -251,13 +252,14 @@ public final class NukleusStreamFactory
                 {
                     DirectBuffer view = new UnsafeBuffer(new byte[0]);
                     ByteBuffer byteBuf = allocateDirect(capacity.value).order(byteOrder);
+                    Buffer buf = byteBuf;
                     regions.forEach(r ->
                     {
                         final int length = r.length();
                         final long resolved = resolveMemory.applyAsLong(r.address());
                         view.wrap(resolved, length);
-                        view.getBytes(0, byteBuf, byteBuf.position(), length);
-                        byteBuf.position(byteBuf.position() + length);
+                        view.getBytes(0, byteBuf, buf.position(), length);
+                        buf.position(buf.position() + length);
                     });
                     byteBuf.flip();
                     buffer = wrappedBuffer(byteBuf);
