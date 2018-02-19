@@ -52,7 +52,7 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     final NukleusReaktor reaktor;
     final Deque<MessageEvent> writeRequests;
 
-    long writeAddressBase;
+    long transferAddressBase;
     final MutableDirectBuffer writeBuffer;
 
     private NukleusExtensionKind readExtKind;
@@ -65,14 +65,14 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
     private ChannelFuture beginInputFuture;
 
     private long ackIndex;
-    private long writeIndex;
+    private long transferIndex;
     private int ackCount;
 
     private long ackIndexHighMark;
     private int ackIndexProgress;
 
-    private int writeCapacity;
-    private final long writeCapacityMask;
+    private int transferCapacity;
+    private final long capacityMask;
 
     NukleusChannel(
         NukleusServerChannel parent,
@@ -87,11 +87,11 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         this.writeRequests = new LinkedList<>();
         this.targetId = ((long) getId()) | 0x8000000000000000L;
 
-        this.writeCapacity = 32 * 1024; // TODO: configurable
-        this.writeIndex = 0L; // TODO: configurable
+        this.transferCapacity = 32 * 1024; // TODO: configurable
+        this.transferIndex = 0L; // TODO: configurable
         this.ackIndex = 0L; // TODO: configurable
-        this.writeCapacityMask = writeCapacity - 1;
-        this.writeAddressBase = -1L;
+        this.capacityMask = transferCapacity - 1;
+        this.transferAddressBase = -1L;
         this.writeBuffer = new UnsafeBuffer(new byte[0]);
 
         this.closing = new AtomicBoolean();
@@ -99,24 +99,24 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
 
     public void acquireWriteMemory()
     {
-        if (writeAddressBase == -1L)
+        if (transferAddressBase == -1L)
         {
-            final long address = reaktor.acquire(writeCapacity);
+            final long address = reaktor.acquire(transferCapacity);
             if (address == -1L)
             {
-                throw new IllegalStateException("Unable to allocate memory block: " + writeCapacity);
+                throw new IllegalStateException("Unable to allocate memory block: " + transferCapacity);
             }
-            this.writeAddressBase = address;
-            this.writeBuffer.wrap(reaktor.resolve(address), writeCapacity);
+            this.transferAddressBase = address;
+            this.writeBuffer.wrap(reaktor.resolve(address), transferCapacity);
         }
     }
 
     public void releaseWriteMemory()
     {
-        if (writeAddressBase != -1L)
+        if (transferAddressBase != -1L)
         {
-            reaktor.release(writeAddressBase, writeCapacity);
-            writeAddressBase = -1L;
+            reaktor.release(transferAddressBase, transferCapacity);
+            transferAddressBase = -1L;
         }
     }
 
@@ -338,7 +338,7 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
 
     public int writableBytes()
     {
-        return writeCapacity - (int)(writeIndex - ackIndex);
+        return transferCapacity - (int)(transferIndex - ackIndex);
     }
 
     public void flushBytes(
@@ -350,36 +350,35 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         if (writeBuf != NULL_BUFFER)
         {
             final ByteBuffer byteBuffer = writeBuf.toByteBuffer();
-            final int writeOffset = (int) (writeIndex & writeCapacityMask);
-            final int writeLimit = writeOffset + writableBytes;
+            final int transferOffset = (int) (transferIndex & capacityMask);
+            final int transferLimit = transferOffset + writableBytes;
 
-            if (writeLimit <= writeCapacity)
+            if (transferLimit <= transferCapacity)
             {
-                writeBuffer.putBytes(writeOffset, byteBuffer, writableBytes);
+                writeBuffer.putBytes(transferOffset, byteBuffer, writableBytes);
 
-                regions.item(r -> r.address(writeAddressBase + writeOffset)
+                regions.item(r -> r.address(transferAddressBase + transferOffset)
                                    .length(writableBytes)
                                    .streamId(streamId));
             }
             else
             {
-                int writableBytes0 = writeCapacity - writeOffset;
+                int writableBytes0 = transferCapacity - transferOffset;
                 int writableBytes1 = writableBytes - writableBytes0;
 
-                writeBuffer.putBytes(writeOffset, byteBuffer, writableBytes0);
+                writeBuffer.putBytes(transferOffset, byteBuffer, writableBytes0);
                 writeBuffer.putBytes(0, byteBuffer, writableBytes1);
 
-                regions.item(r -> r.address(writeAddressBase + writeOffset)
+                regions.item(r -> r.address(transferAddressBase + transferOffset)
                                    .length(writableBytes0)
                                    .streamId(streamId));
-                regions.item(r -> r.address(writeAddressBase)
+                regions.item(r -> r.address(transferAddressBase)
                                    .length(writableBytes1)
                                    .streamId(streamId));
             }
 
-            writeIndex += writableBytes;
+            transferIndex += writableBytes;
             writeBuf.skipBytes(writableBytes);
-
         }
     }
 
@@ -389,12 +388,18 @@ public abstract class NukleusChannel extends AbstractChannel<NukleusChannelConfi
         final long address = region.address();
         final int length = region.length();
 
-        final long addressIndex = (ackIndex & ~writeCapacityMask) | (address & writeCapacityMask);
+        final int ackOffset = (int) (ackIndex & capacityMask);
+        final long epochIndex = (address >= ackOffset ? ackIndex : ackIndex + transferCapacity) & ~capacityMask;
+        final long regionIndex = epochIndex | (address & capacityMask);
+        assert regionIndex >= ackIndex;
+        assert regionIndex <= transferIndex;
 
-        ackIndexHighMark = Math.max(ackIndexHighMark, addressIndex + length);
+        ackIndexHighMark = Math.max(ackIndexHighMark, regionIndex + length);
         ackIndexProgress += length;
 
         final long ackIndexCandidate = ackIndex + ackIndexProgress;
+        assert ackIndexCandidate <= ackIndexHighMark;
+
         if (ackIndexCandidate == ackIndexHighMark)
         {
             ackIndex = ackIndexCandidate;
