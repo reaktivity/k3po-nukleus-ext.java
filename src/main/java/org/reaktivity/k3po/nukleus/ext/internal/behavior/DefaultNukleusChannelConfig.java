@@ -30,6 +30,7 @@ public class DefaultNukleusChannelConfig extends DefaultChannelConfig implements
     private String readPartition;
     private String writePartition;
     private NukleusTransmission transmission = SIMPLEX;
+    private long acknowledgeBytes = Long.MAX_VALUE;
 
     public DefaultNukleusChannelConfig()
     {
@@ -90,6 +91,19 @@ public class DefaultNukleusChannelConfig extends DefaultChannelConfig implements
     }
 
     @Override
+    public void setAcknowledgeBytes(
+        long acknowledgeBytes)
+    {
+        this.acknowledgeBytes = acknowledgeBytes;
+    }
+
+    @Override
+    public long getAcknowledgeBytes()
+    {
+        return acknowledgeBytes;
+    }
+
+    @Override
     protected boolean setOption0(
         String key,
         Object value)
@@ -117,6 +131,10 @@ public class DefaultNukleusChannelConfig extends DefaultChannelConfig implements
         else if (OPTION_BYTE_ORDER.getName().equals(key))
         {
             setBufferFactory(NukleusByteOrder.decode(Objects.toString(value, "native")).toBufferFactory());
+        }
+        else if ("acknowledge".equals(key))
+        {
+            setAcknowledgeBytes(convertToLong(value));
         }
         else
         {

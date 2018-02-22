@@ -34,4 +34,8 @@ public interface NukleusChannelConfig extends ChannelConfig
     void setTransmission(NukleusTransmission transmission);
 
     NukleusTransmission getTransmission();
+
+    void setAcknowledgeBytes(long acknowledgeBytes);
+
+    long getAcknowledgeBytes();
 }
