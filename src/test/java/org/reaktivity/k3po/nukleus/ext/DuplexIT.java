@@ -388,4 +388,24 @@ public class DuplexIT
     {
         k3po.finish();
     }
+
+    @Test
+    @Specification({
+        "client.deferred.acks/client",
+        "client.deferred.acks/server"
+    })
+    public void shouldReceiveClientDeferredAcks() throws Exception
+    {
+        k3po.finish();
+    }
+
+    @Test
+    @Specification({
+        "server.deferred.acks/client",
+        "server.deferred.acks/server"
+    })
+    public void shouldReceiveServerDeferredAcks() throws Exception
+    {
+        k3po.finish();
+    }
 }

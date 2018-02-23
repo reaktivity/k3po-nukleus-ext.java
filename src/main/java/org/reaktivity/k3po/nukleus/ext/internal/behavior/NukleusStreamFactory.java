@@ -32,6 +32,8 @@ import static org.reaktivity.k3po.nukleus.ext.internal.behavior.NullChannelBuffe
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Deque;
+import java.util.LinkedList;
 import java.util.function.LongConsumer;
 import java.util.function.LongUnaryOperator;
 
@@ -53,6 +55,11 @@ public final class NukleusStreamFactory
 {
     private final BeginFW beginRO = new BeginFW();
     private final TransferFW transferRO = new TransferFW();
+
+    private final ListFW.Builder<RegionFW.Builder, RegionFW> regionsRW =
+            new ListFW.Builder<RegionFW.Builder, RegionFW>(new RegionFW.Builder(), new RegionFW());
+
+    private final MutableDirectBuffer bufferRW = new UnsafeBuffer(new byte[1024]);
 
     private final LongUnaryOperator resolveMemory;
     private final LongConsumer unregisterStream;
@@ -78,6 +85,9 @@ public final class NukleusStreamFactory
         private final NukleusChannel channel;
         private final NukleusPartition partition;
         private final ChannelFuture handshakeFuture;
+
+        private Deque<NukleusAck> deferredAcks;
+        private int transferIndex;
 
         private Stream(
             NukleusChannel channel,
@@ -149,6 +159,9 @@ public final class NukleusStreamFactory
 
             final ByteOrder byteOrder = channel.getConfig().getBufferFactory().getDefaultOrder();
             final ChannelBuffer message = toChannelBuffer(byteOrder, flags, regions, transferExt);
+            final int messageSize = (message != null) ? message.readableBytes() : 0;
+
+            transferIndex += messageSize;
 
             if (transfer.authorization() == channel.sourceAuth())
             {
@@ -224,7 +237,49 @@ public final class NukleusStreamFactory
                 }
             }
 
-            partition.doAck(streamId, flags, regions);
+            if (transferIndex < channel.getConfig().getAcknowledgeBytes() ||
+                    FIN.check(flags) || RST.check(flags))
+            {
+                flushDeferredAcks();
+
+                partition.doAck(streamId, flags, regions);
+            }
+            else
+            {
+                deferAck(streamId, flags, regions);
+            }
+        }
+
+        private void deferAck(
+            long streamId,
+            int flags,
+            ListFW<RegionFW> regions)
+        {
+            if (deferredAcks == null)
+            {
+                deferredAcks = new LinkedList<>();
+            }
+
+            NukleusAck ack = new NukleusAck(streamId, flags);
+            regions.forEach(r -> ack.addRegion(r.address(), r.length(), r.streamId()));
+            deferredAcks.add(ack);
+        }
+
+        private void flushDeferredAcks()
+        {
+            if (deferredAcks != null)
+            {
+                while (!deferredAcks.isEmpty())
+                {
+                    NukleusAck ack = deferredAcks.removeLast();
+                    regionsRW.wrap(bufferRW, 0, bufferRW.capacity());
+                    ack.regions.stream()
+                               .forEach(r -> regionsRW.item(m -> m.address(r.address).length(r.length).streamId(r.streamId)));
+                    partition.doAck(ack.streamId, ack.flags, regionsRW.build());
+                }
+
+                deferredAcks = null;
+            }
         }
 
         private ChannelBuffer toChannelBuffer(
