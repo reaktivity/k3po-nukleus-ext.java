@@ -15,6 +15,10 @@
  */
 package org.reaktivity.k3po.nukleus.ext.internal.behavior;
 
+import static org.jboss.netty.channel.Channels.fireChannelClosed;
+import static org.jboss.netty.channel.Channels.fireChannelDisconnected;
+import static org.jboss.netty.channel.Channels.fireChannelUnbound;
+
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -154,13 +158,19 @@ public final class NukleusScope implements AutoCloseable
             NukleusTarget target = supplyTarget(channel);
             target.doClose(channel, handlerFuture);
         }
-        else if (!channel.isReadClosed())
+        else if (!channel.isReadClosed() && channel.beginInputFuture().isSuccess())
         {
             doAbortInput(channel, handlerFuture);
         }
         else
         {
             handlerFuture.setSuccess();
+            if (channel.setClosed())
+            {
+                fireChannelDisconnected(channel);
+                fireChannelUnbound(channel);
+                fireChannelClosed(channel);
+            }
         }
     }
 
