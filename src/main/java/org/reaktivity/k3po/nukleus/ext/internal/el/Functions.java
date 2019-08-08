@@ -27,6 +27,7 @@ import org.kaazing.k3po.lang.el.spi.FunctionMapperSpi;
 import org.reaktivity.k3po.nukleus.ext.internal.NukleusExtConfiguration;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.LabelManager;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.control.Role;
+import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.SignalFW;
 
 public final class Functions
 {
@@ -105,6 +106,18 @@ public final class Functions
         String receiverAddress)
     {
         return newRouteId(Role.PROXY, receiverAddress, senderAddress);
+    }
+
+    @Function
+    public static byte[] signal(
+        long routeId,
+        long streamId,
+        long traceId,
+        long authorization)
+    {
+        SignalFW signal = new SignalFW();
+        final byte[] bytes = new byte[1];
+        return bytes;
     }
 
     private static long nextLongNonZero()
