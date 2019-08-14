@@ -22,21 +22,15 @@ import static java.lang.ThreadLocal.withInitial;
 import java.nio.file.Path;
 import java.util.concurrent.ThreadLocalRandom;
 
-import org.agrona.DirectBuffer;
-import org.agrona.MutableDirectBuffer;
-import org.agrona.concurrent.UnsafeBuffer;
 import org.kaazing.k3po.lang.el.Function;
 import org.kaazing.k3po.lang.el.spi.FunctionMapperSpi;
 import org.reaktivity.k3po.nukleus.ext.internal.NukleusExtConfiguration;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.LabelManager;
 import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.control.Role;
-import org.reaktivity.k3po.nukleus.ext.internal.behavior.types.stream.SignalFW;
 
 public final class Functions
 {
     private static final ThreadLocal<LabelManager> LABELS = withInitial(Functions::newLabelManager);
-
-    private static final SignalFW.Builder signalRW = new SignalFW.Builder();
 
     public static final class Mapper extends FunctionMapperSpi.Reflective
     {
@@ -111,24 +105,6 @@ public final class Functions
         String receiverAddress)
     {
         return newRouteId(Role.PROXY, receiverAddress, senderAddress);
-    }
-
-    @Function
-    public static byte[] signal(
-        long routeId,
-        long streamId,
-        long traceId,
-        long authorization)
-    {
-        MutableDirectBuffer buffer = new UnsafeBuffer(new byte[signalRW.limit()]);
-
-        final SignalFW signal = signalRW.wrap(buffer, 0, buffer.capacity())
-                .routeId(routeId)
-                .streamId(streamId)
-                .trace(traceId)
-                .authorization(authorization)
-                .build();
-        return signal.buffer().byteArray();
     }
 
     private static long nextLongNonZero()
