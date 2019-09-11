@@ -49,8 +49,8 @@
     <nukleus.spec.version>0.39</nukleus.spec.version>
     <nukleus.plugin.version>0.32</nukleus.plugin.version>
 
-    <jacoco.coverage.ratio>0.02</jacoco.coverage.ratio>
-    <jacoco.missed.count>128</jacoco.missed.count>
+    <jacoco.coverage.ratio>0.06</jacoco.coverage.ratio>
+    <jacoco.missed.count>64</jacoco.missed.count>
   </properties>
 
   <dependencies>
@@ -154,7 +154,7 @@
       </plugin>
       <plugin>
         <artifactId>maven-checkstyle-plugin</artifactId>
-        <version>3.0.0</version>
+        <version>3.1.0</version>
         <configuration>
           <sourceDirectories>
             <sourceDirectory>${project.build.sourceDirectory}</sourceDirectory>
@@ -173,7 +173,7 @@
           <dependency>
             <groupId>com.puppycrawl.tools</groupId>
             <artifactId>checkstyle</artifactId>
-            <version>8.18</version>
+            <version>8.23</version>
           </dependency>
         </dependencies>
       </plugin>
@@ -207,6 +207,9 @@
         <artifactId>jacoco-maven-plugin</artifactId>
         <version>0.8.2</version>
         <configuration>
+          <excludes>
+            <exclude>org/reaktivity/k3po/nukleus/ext/internal/behavior/types/**/*.class</exclude>
+          </excludes>
           <rules>
             <rule>
               <element>BUNDLE</element>
